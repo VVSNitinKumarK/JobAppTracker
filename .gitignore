@@ -1,0 +1,83 @@
+﻿############################################
+# JobAppTracker Monorepo .gitignore (root)
+# Covers:
+#  - backend/ (Spring Boot + Maven)
+#  - frontend/ (React + TypeScript)
+############################################
+
+###############
+# Secrets
+###############
+**/.env
+**/.env.*
+**/.env.*.local
+**/.env.local
+
+###############
+# Backend (Maven / Spring Boot)
+###############
+backend/target/
+backend/.kotlin
+
+# Keep Maven wrapper jar if you use it
+!backend/.mvn/wrapper/maven-wrapper.jar
+
+# (Optional legacy rules from template; harmless)
+!backend/**/src/main/**/target/
+!backend/**/src/test/**/target/
+
+# Build outputs (rare for Maven, but kept from template)
+backend/build/
+!backend/**/src/main/**/build/
+!backend/**/src/test/**/build/
+
+###############
+# Frontend (Node / React)
+###############
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+frontend/.vite/
+frontend/.cache/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+
+###############
+# IDEs / Editors
+###############
+# IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+
+# VS Code
+.vscode/
+
+###############
+# Java / OS junk
+###############
+*.log
+.DS_Store
+Thumbs.db
+
+###############
+# Eclipse / STS
+###############
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings/
+.springBeans
+.sts4-cache/
+
+###############
+# NetBeans
+###############
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
