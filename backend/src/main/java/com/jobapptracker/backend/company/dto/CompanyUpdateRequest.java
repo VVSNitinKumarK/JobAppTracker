@@ -1,7 +1,5 @@
 package com.jobapptracker.backend.company.dto;
 
-import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
-
 import java.time.LocalDate;
 import java.util.List;
 
