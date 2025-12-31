@@ -53,7 +53,6 @@ function ChecklistPill(props: {
                 {item.completed ? <Check className="h-4 w-4" /> : null}
             </button>
 
-            {/* Pill ONLY for text; strike applies ONLY here */}
             <div className="relative inline-block">
                 <a
                     href={item.careersUrl}
