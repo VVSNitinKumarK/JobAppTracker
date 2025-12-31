@@ -56,7 +56,7 @@ public class CompanyRepository {
 
         if (q != null && !q.isBlank()) {
             sqlQuery.append(" AND company_name ILIKE ? ");
-            parameters.add("%" + q.trim() + "%");
+            parameters.add(q.trim() + "%");
         }
 
         if (tagsAny != null && !tagsAny.isEmpty()) {
