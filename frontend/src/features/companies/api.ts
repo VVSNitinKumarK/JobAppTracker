@@ -8,11 +8,34 @@ export type CompaniesResponse = {
     total: number;
 };
 
+// Define possible response shapes from your API wrapper
+type ApiResponse<T> = T | { data: T };
+
+// Define possible backend response formats
+type BackendArrayResponse = CompanyRow[];
+
+type BackendObjectResponse = {
+    items: CompanyRow[];
+    page?: number;
+    size?: number;
+    total?: number;
+};
+
+type BackendSpringPageResponse = {
+    content: CompanyRow[];
+    totalElements?: number;
+    number?: number;
+    size?: number;
+};
+
+type BackendResponse =
+    | BackendArrayResponse
+    | BackendObjectResponse
+    | BackendSpringPageResponse;
+
 // Helper: your api wrapper may return either `data` directly or `{ data }`
-function unwrap<T>(res: any): T {
-    return res && typeof res === "object" && "data" in res
-        ? (res.data as T)
-        : (res as T);
+function unwrap<T>(res: ApiResponse<T>): T {
+    return res && typeof res === "object" && "data" in res ? res.data : res;
 }
 
 export async function getCompanies(params?: {
@@ -29,44 +52,57 @@ export async function getCompanies(params?: {
     query.set("size", String(size));
     if (q && q.trim().length > 0) query.set("q", q.trim());
 
-    const res = await api.get(`/companies?${query.toString()}`);
-    const data = unwrap<any>(res);
+    const res = (await api.get(
+        `/companies?${query.toString()}`
+    )) as ApiResponse<BackendResponse>;
+    const data = unwrap<BackendResponse>(res);
 
-    // Case 1: backend returns plain array
     if (Array.isArray(data)) {
         return {
-            items: data as CompanyRow[],
+            items: data,
             page,
             size,
             total: data.length,
         } satisfies CompaniesResponse;
     }
 
-    // Case 2: backend returns { items, page, size, total }
-    if (data && Array.isArray(data.items)) {
+    if ("items" in data && Array.isArray(data.items)) {
         return {
-            items: data.items as CompanyRow[],
+            items: data.items,
             page: Number(data.page ?? page),
             size: Number(data.size ?? size),
             total: Number(data.total ?? data.items.length),
         } satisfies CompaniesResponse;
     }
 
-    // Case 3: Spring Page style: { content: [], totalElements, number, size }
-    if (data && Array.isArray(data.content)) {
+    if ("content" in data && Array.isArray(data.content)) {
         return {
-            items: data.content as CompanyRow[],
+            items: data.content,
             page: Number(data.number ?? page),
             size: Number(data.size ?? size),
             total: Number(data.totalElements ?? data.content.length),
         } satisfies CompaniesResponse;
     }
 
-    // Fallback
     return {
         items: [],
         page,
         size,
         total: 0,
     } satisfies CompaniesResponse;
+}
+
+export type CreateCompanyRequest = {
+    companyName: string;
+    careersUrl: string;
+    lastVisitedOn?: string | null;
+    revisitAfterDays?: number;
+    tags?: string[];
+};
+
+export async function createCompany(
+    payload: CreateCompanyRequest
+): Promise<CompanyRow> {
+    const res = await api.post<CompanyRow>(`/companies`, payload);
+    return unwrap(res);
 }

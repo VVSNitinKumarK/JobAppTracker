@@ -6,7 +6,7 @@ import {
     getCoreRowModel,
     useReactTable,
 } from "@tanstack/react-table";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Plus } from "lucide-react";
 
 import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
@@ -22,6 +22,7 @@ import {
 
 import { useCompanies } from "./hooks";
 import type { CompanyRow } from "./types";
+import { AddCompanyDialog } from "./AddCompanyDialog";
 
 function formatYmdOrDash(v: string | null) {
     if (!v) {
@@ -106,7 +107,7 @@ export function CompaniesTable() {
                             window.open(
                                 row.original.careersUrl,
                                 "_blank",
-                                "nonreferrer"
+                                "noopener,nonreferrer"
                             )
                         }
                         title="Open careers page"
@@ -128,6 +129,9 @@ export function CompaniesTable() {
         getCoreRowModel: getCoreRowModel(),
     });
 
+    const [addOpen, setAddOpen] = useState(false);
+    const [seedName, setSeedName] = useState<string>("");
+
     return (
         <section className="h-full w-full rounded-lg border bg-background p-4 flex flex-col overflow-hidden">
             <div className="flex items-start justify-between gap-4">
@@ -138,12 +142,58 @@ export function CompaniesTable() {
                     </div>
                 </div>
 
-                <Input
-                    value={query}
-                    onChange={(event) => setQuery(event.target.value)}
-                    placeholder="Search company_"
-                />
+                <div className="flex items-center gap-2 w-full">
+                    <Input
+                        value={query}
+                        onChange={(event) => setQuery(event.target.value)}
+                        placeholder="Search company (starts with)..."
+                        className="w-full"
+                        onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                                const trimmed = query.trim();
+                                if (
+                                    trimmed.length > 0 &&
+                                    items.length === 0 &&
+                                    !isLoading
+                                ) {
+                                    event.preventDefault();
+                                    setSeedName(trimmed);
+                                    setAddOpen(true);
+                                }
+                            }
+                        }}
+                    />
+
+                    <Button
+                        type="button"
+                        onClick={() => {
+                            setSeedName(query.trim());
+                            setAddOpen(true);
+                        }}
+                        className="h-9 w-9 p-0"
+                        title="Add Company"
+                    >
+                        <Plus className="h-4 w-4" />
+                    </Button>
+                </div>
             </div>
+
+            {!isLoading && query.trim().length > 0 && items.length === 0 ? (
+                <button
+                    type="button"
+                    onClick={() => {
+                        setSeedName(query.trim());
+                        setAddOpen(true);
+                    }}
+                    className="rounded-md border bg-blue-500/10 px-3 py-2 text-left text-sm hover:bg-blue-500/15"
+                >
+                    <span className="font-medium">Create new Company:</span>{" "}
+                    <span className="font-mono">{query.trim()}</span>{" "}
+                    <span className="text-xs text-muted-foreground">
+                        (press Enter)
+                    </span>
+                </button>
+            ) : null}
 
             <div className="mt-4 flex-1 overflow-auto rounded-md border">
                 {isLoading ? (
@@ -202,6 +252,12 @@ export function CompaniesTable() {
                     </Table>
                 )}
             </div>
+
+            <AddCompanyDialog
+                open={addOpen}
+                onOpenChange={setAddOpen}
+                initialName={seedName}
+            />
         </section>
     );
 }

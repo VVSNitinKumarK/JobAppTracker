@@ -1,5 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
-import { getCompanies } from "./api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { getCompanies, createCompany, type CreateCompanyRequest } from "./api";
 
 export const companyKeys = {
     all: ["companies"] as const,
@@ -16,5 +16,16 @@ export function useCompanies(params: {
         queryKey: companyKeys.list(params),
         queryFn: () => getCompanies(params),
         staleTime: 30_000,
+    });
+}
+
+export function useCreateCompany() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (payload: CreateCompanyRequest) => createCompany(payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["companies"] });
+        },
     });
 }
