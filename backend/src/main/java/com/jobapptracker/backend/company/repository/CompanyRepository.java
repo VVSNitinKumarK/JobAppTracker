@@ -302,4 +302,17 @@ public class CompanyRepository {
 
         return results.isEmpty() ? null : results.getFirst();
     }
+
+    public int deleteCompany(UUID companyId) {
+        String sqlQuery = """
+                DELETE FROM jobapps.company_tracking
+                WHERE company_id = ?
+                """;
+
+        return jdbcTemplate.update(con -> {
+            PreparedStatement preparedStatement = con.prepareStatement(sqlQuery);
+            preparedStatement.setObject(1, companyId);
+            return preparedStatement;
+        });
+    }
 }

@@ -25,4 +25,9 @@ export const api = {
             headers: jsonHeaders,
             body: JSON.stringify(body),
         }),
+
+    delete: (path: string) =>
+        http<void>(apiURL(path), {
+            method: "DELETE",
+        }),
 };

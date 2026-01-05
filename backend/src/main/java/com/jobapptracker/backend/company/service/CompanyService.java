@@ -188,4 +188,15 @@ public class CompanyService {
 
         return updated;
     }
+
+    public void deleteCompany(UUID companyId) {
+        if (companyId == null) {
+            throw new IllegalArgumentException("companyId is required");
+        }
+
+        int deleted = companyRepository.deleteCompany(companyId);
+        if (deleted == 0) {
+            throw new CompanyNotFoundException();
+        }
+    }
 }

@@ -4,5 +4,6 @@ export type CompanyRow = {
     careersUrl: string;
     lastVisitedOn: string | null;
     nextVisitOn: string | null;
+    revisitAfterDays: number;
     tags: string[];
 };

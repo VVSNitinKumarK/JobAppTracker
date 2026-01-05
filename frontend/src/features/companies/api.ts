@@ -103,6 +103,29 @@ export type CreateCompanyRequest = {
 export async function createCompany(
     payload: CreateCompanyRequest
 ): Promise<CompanyRow> {
-    const res = await api.post<CompanyRow>(`/companies`, payload);
-    return unwrap(res);
+    const response = await api.post<CompanyRow>(`/companies`, payload);
+    return unwrap(response);
+}
+
+export type UpdateCompanyRequest = {
+    companyName?: string;
+    careersUrl?: string;
+    lastVisitedOn?: string;
+    revisitAfterDays?: number;
+    tags?: string[];
+};
+
+export async function updateCompany(
+    companyId: string,
+    payload: UpdateCompanyRequest
+): Promise<CompanyRow> {
+    const response = await api.put<CompanyRow>(
+        `/companies/${companyId}`,
+        payload
+    );
+    return unwrap(response);
+}
+
+export async function deleteComnpany(companyId: string): Promise<void> {
+    await api.delete(`/companies/${companyId}`);
 }

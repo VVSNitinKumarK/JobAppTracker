@@ -54,4 +54,10 @@ public class CompanyController {
         CompanyDto updated = companyService.markVisitedToday(companyId);
         return ResponseEntity.ok(updated);
     }
+
+    @DeleteMapping("/{companyId}")
+    public ResponseEntity<Void> deleteCompany(@PathVariable UUID companyId) {
+        companyService.deleteCompany(companyId);
+        return ResponseEntity.noContent().build();
+    }
 }
