@@ -36,7 +36,11 @@ export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
 
     const isPast = isBefore(selectedDate, today);
 
-    const filtered = items.filter((item) =>
+    const exactDateItems = items.filter(
+        (item) => item.nextVisitOn === selectedYmd
+    );
+
+    const filtered = exactDateItems.filter((item) =>
         isPast ? item.completed === true : item.completed === false
     );
 

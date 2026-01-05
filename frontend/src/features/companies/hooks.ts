@@ -1,5 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getCompanies, createCompany, type CreateCompanyRequest } from "./api";
+import {
+    getCompanies,
+    createCompany,
+    updateCompany,
+    deleteComnpany,
+    type CreateCompanyRequest,
+    type UpdateCompanyRequest,
+} from "./api";
 
 export const companyKeys = {
     all: ["companies"] as const,
@@ -24,6 +31,33 @@ export function useCreateCompany() {
 
     return useMutation({
         mutationFn: (payload: CreateCompanyRequest) => createCompany(payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["companies"] });
+        },
+    });
+}
+
+export function useUpdateCompany() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: (args: {
+            companyId: string;
+            payload: UpdateCompanyRequest;
+        }) => updateCompany(args.companyId, args.payload),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ["companies"] });
+        },
+    });
+}
+
+export function useDeleteCompanies() {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async (companyIds: string[]) => {
+            await Promise.all(companyIds.map((id) => deleteComnpany(id)));
+        },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: ["companies"] });
         },
