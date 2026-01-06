@@ -4,21 +4,29 @@ import {
     createCompany,
     updateCompany,
     deleteComnpany,
+    getTags,
     type CreateCompanyRequest,
     type UpdateCompanyRequest,
+    type DueFilter,
 } from "./api";
 
-export const companyKeys = {
-    all: ["companies"] as const,
-    list: (params: { page: number; size: number; q: string }) =>
-        ["companies", "list", params] as const,
-};
-
-export function useCompanies(params: {
+export type CompanyFilters = {
     page: number;
     size: number;
     q: string;
-}) {
+    tags?: string[];
+    due?: DueFilter;
+    date?: string;
+    lastVisitedOn?: string;
+};
+
+export const companyKeys = {
+    all: ["companies"] as const,
+    list: (filters: CompanyFilters) =>
+        ["companies", "list", filters] as const,
+};
+
+export function useCompanies(params: CompanyFilters) {
     return useQuery({
         queryKey: companyKeys.list(params),
         queryFn: () => getCompanies(params),
@@ -32,7 +40,7 @@ export function useCreateCompany() {
     return useMutation({
         mutationFn: (payload: CreateCompanyRequest) => createCompany(payload),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["companies"] });
+            queryClient.invalidateQueries({ queryKey: companyKeys.all });
         },
     });
 }
@@ -46,7 +54,7 @@ export function useUpdateCompany() {
             payload: UpdateCompanyRequest;
         }) => updateCompany(args.companyId, args.payload),
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["companies"] });
+            queryClient.invalidateQueries({ queryKey: companyKeys.all });
         },
     });
 }
@@ -59,7 +67,20 @@ export function useDeleteCompanies() {
             await Promise.all(companyIds.map((id) => deleteComnpany(id)));
         },
         onSuccess: () => {
-            queryClient.invalidateQueries({ queryKey: ["companies"] });
+            queryClient.invalidateQueries({ queryKey: companyKeys.all });
         },
+    });
+}
+
+export const tagKeys = {
+    all: ["tags"] as const,
+    list: () => ["tags", "list"] as const,
+};
+
+export function useGetTags() {
+    return useQuery({
+        queryKey: tagKeys.list(),
+        queryFn: getTags,
+        staleTime: 5 * 60_000,
     });
 }

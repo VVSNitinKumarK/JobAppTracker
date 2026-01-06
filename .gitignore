@@ -81,3 +81,10 @@ Thumbs.db
 /dist/
 /nbdist/
 /.nb-gradle/
+
+###############
+# Planning Docs (Personal)
+###############
+MCP_HIRING_INSIGHTS_PLAN.md
+*_PLAN.md
+*_TODO.md

@@ -20,3 +20,7 @@ export function setChecklistCompleted(params: {
         { completed }
     );
 }
+
+export function submitChecklist(date: string) {
+    return api.post<void>(`/checklist/${encodeURIComponent(date)}/submit`, {});
+}

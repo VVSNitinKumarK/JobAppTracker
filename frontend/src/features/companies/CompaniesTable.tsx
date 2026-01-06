@@ -21,14 +21,14 @@ import {
     TableRow,
 } from "../../components/ui/table";
 
-import { useCompanies, useDeleteCompanies } from "./hooks";
+import { useCompanies, useDeleteCompanies, useGetTags } from "./hooks";
 import type { CompanyRow } from "./types";
 import { AddCompanyDialog } from "./AddCompanyDialog";
 import { UpdateCompanyDialog } from "./UpdateCompanyDialog";
 import { DeleteCompaniesDialog } from "./DeleteCompaniesDialog";
 import {
     CompaniesFilterDialog,
-    type CompanyFilters,
+    type CompanyFilters as UICompanyFilters,
 } from "./CompaniesFilterDialog";
 
 import { cn } from "@/lib/utils";
@@ -38,7 +38,7 @@ function formatYmdOrDash(v: string | null) {
         return "-";
     }
 
-    return format(new Date(`${v}T00:00:00`), "yyyy-MM-dd");
+    return format(new Date(`${v}T00:00:00`), "MM-dd-yyyy");
 }
 
 function IndeterminateCheckbox(properties: {
@@ -80,57 +80,58 @@ function IndeterminateCheckbox(properties: {
 
 export function CompaniesTable() {
     const [query, setQuery] = useState("");
-    const page = 0;
-    const size = 50;
+    const [page, setPage] = useState(0);
+    const [size] = useState(50);
 
-    const { data, isLoading, isError } = useCompanies({ page, size, q: query });
-
-    const items = useMemo(() => data?.items ?? [], [data]);
-
-    const [filters, setFilters] = useState<CompanyFilters>({
+    const [uiFilters, setUiFilters] = useState<UICompanyFilters>({
         lastVisitedOnYmd: null,
         nextVisitOnYmd: null,
         tagsAny: [],
     });
     const [filterOpen, setFilterOpen] = useState(false);
 
+    // Map UI filters to backend API parameters
+    const apiFilters = useMemo(() => {
+        return {
+            page,
+            size,
+            q: query,
+            // Use nextVisitOn date filter for backend 'date' parameter
+            date: uiFilters.nextVisitOnYmd || undefined,
+            // Use lastVisitedOn date filter for backend 'lastVisitedOn' parameter
+            lastVisitedOn: uiFilters.lastVisitedOnYmd || undefined,
+            // Use tags filter for backend 'tags' parameter
+            tags: uiFilters.tagsAny && uiFilters.tagsAny.length > 0
+                ? uiFilters.tagsAny
+                : undefined,
+        };
+    }, [page, size, query, uiFilters]);
+
+    const { data, isLoading, isError } = useCompanies(apiFilters);
+
+    const items = useMemo(() => data?.items ?? [], [data]);
+    const totalCount = data?.total ?? 0;
+
+    // All filtering is now server-side!
+    const filteredItems = items;
+
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const anySelected = Object.keys(rowSelection).length > 0;
 
+    const tagsQuery = useGetTags();
+    const tagNameByKey = useMemo(() => {
+        const map = new Map<string, string>();
+        for (const t of tagsQuery.data ?? []) {
+            if (!t.tagKey || !t.tagName) continue;
+            map.set(t.tagKey, t.tagName);
+        }
+        return map;
+    }, [tagsQuery.data]);
+
     useEffect(() => {
         setRowSelection({});
-    }, [query]);
-
-    const filteredItems = useMemo(() => {
-        const last = filters.lastVisitedOnYmd ?? null;
-        const next = filters.nextVisitOnYmd ?? null;
-        const tagsAny = (filters.tagsAny ?? []).map((t) => t.toLowerCase());
-
-        const hasDate = Boolean(last || next);
-        const hasTags = tagsAny.length > 0;
-
-        return items.filter((company) => {
-            let dateOk = true;
-            if (hasDate) {
-                const lastMatch = last ? company.lastVisitedOn === last : false;
-                const nextMatch = next ? company.nextVisitOn === next : false;
-                dateOk =
-                    last && next
-                        ? lastMatch || nextMatch
-                        : lastMatch || nextMatch;
-            }
-
-            let tagsOk = true;
-            if (hasTags) {
-                const rowTags = (company.tags ?? []).map((t) =>
-                    t.toLowerCase()
-                );
-                tagsOk = tagsAny.some((t) => rowTags.includes(t));
-            }
-
-            return dateOk && tagsOk;
-        });
-    }, [items, filters]);
+        setPage(0); // Reset to first page when query changes
+    }, [query, uiFilters]);
 
     const columns = useMemo<ColumnDef<CompanyRow>[]>(
         () => [
@@ -220,15 +221,16 @@ export function CompaniesTable() {
                     if (tags.length === 0) {
                         return <span className="text-muted-foreground">-</span>;
                     }
+
                     return (
                         <div className="flex flex-wrap gap-1.5">
-                            {tags.map((tag) => (
+                            {tags.map((t) => (
                                 <Badge
-                                    key={tag}
+                                    key={t.tagKey}
                                     variant="secondary"
                                     className="rounded-full"
                                 >
-                                    {tag}
+                                    {t.tagName}
                                 </Badge>
                             ))}
                         </div>
@@ -289,7 +291,7 @@ export function CompaniesTable() {
                 <div>
                     <h2 className="text-base font-semibold">Companies</h2>
                     <div className="mt-1 text-xs text-muted-foreground">
-                        Showing {filteredItems.length}
+                        Showing {filteredItems.length} of {totalCount} total
                     </div>
                 </div>
 
@@ -376,19 +378,21 @@ export function CompaniesTable() {
                 </div>
             ) : null}
 
-            {filters.lastVisitedOnYmd ||
-            filters.nextVisitOnYmd ||
-            (filters.tagsAny?.length ?? 0) > 0 ? (
+            {uiFilters.lastVisitedOnYmd ||
+            uiFilters.nextVisitOnYmd ||
+            (uiFilters.tagsAny?.length ?? 0) > 0 ? (
                 <div className="mt-2 text-xs text-muted-foreground">
                     Filters:
-                    {filters.lastVisitedOnYmd
-                        ? ` last=${filters.lastVisitedOnYmd}`
+                    {uiFilters.lastVisitedOnYmd
+                        ? ` last=${uiFilters.lastVisitedOnYmd}`
                         : ""}
-                    {filters.nextVisitOnYmd
-                        ? ` next=${filters.nextVisitOnYmd}`
+                    {uiFilters.nextVisitOnYmd
+                        ? ` next=${uiFilters.nextVisitOnYmd}`
                         : ""}
-                    {(filters.tagsAny?.length ?? 0) > 0
-                        ? ` tags=${filters.tagsAny?.join(", ")}`
+                    {(uiFilters.tagsAny?.length ?? 0) > 0
+                        ? ` tags=${uiFilters.tagsAny
+                              .map((k) => tagNameByKey.get(k) ?? k)
+                              .join(", ")}`
                         : ""}
                 </div>
             ) : null}
@@ -471,6 +475,33 @@ export function CompaniesTable() {
                 )}
             </div>
 
+            {/* Pagination Controls */}
+            {totalCount > size && (
+                <div className="mt-3 flex items-center justify-between text-sm">
+                    <div className="text-muted-foreground">
+                        Page {page + 1} of {Math.ceil(totalCount / size)}
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage((p) => Math.max(0, p - 1))}
+                            disabled={page === 0 || isLoading}
+                        >
+                            Previous
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setPage((p) => p + 1)}
+                            disabled={page >= Math.ceil(totalCount / size) - 1 || isLoading}
+                        >
+                            Next
+                        </Button>
+                    </div>
+                </div>
+            )}
+
             <AddCompanyDialog
                 open={addOpen}
                 onOpenChange={setAddOpen}
@@ -508,17 +539,19 @@ export function CompaniesTable() {
             <CompaniesFilterDialog
                 open={filterOpen}
                 onOpenChange={setFilterOpen}
-                value={filters}
+                value={uiFilters}
                 onApply={(next) => {
-                    setFilters(next);
+                    setUiFilters(next);
+                    setPage(0); // Reset to first page when filters change
                     clearSelection();
                 }}
                 onClear={() => {
-                    setFilters({
+                    setUiFilters({
                         lastVisitedOnYmd: null,
                         nextVisitOnYmd: null,
                         tagsAny: [],
                     });
+                    setPage(0);
                     clearSelection();
                 }}
             />

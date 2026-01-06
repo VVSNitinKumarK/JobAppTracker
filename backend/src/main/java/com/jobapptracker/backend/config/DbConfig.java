@@ -11,6 +11,13 @@ import javax.sql.DataSource;
 @Configuration
 public class DbConfig {
 
+    private static String require(String v, String name) {
+        if (v == null || v.isBlank()) {
+            throw new IllegalStateException("Missing required env var: " + name);
+        }
+        return v;
+    }
+
     @Bean
     public DataSource dataSource() {
         String envDir = System.getenv("AF_ENV_DIR");
@@ -25,12 +32,13 @@ public class DbConfig {
                 .ignoreIfMissing()
                 .load();
 
-        String host = dotenv.get("DB_HOST");
-        String port = dotenv.get("DB_PORT");
-        String db = dotenv.get("DB_NAME");
-        String schema = dotenv.get("DB_SCHEMA");
-        String user = dotenv.get("DB_USERNAME");
-        String password = dotenv.get("DB_PASSWORD");
+        String host = require(dotenv.get("DB_HOST"), "DB_HOST");
+        String port = require(dotenv.get("DB_PORT"), "DB_PORT");
+        String db = require(dotenv.get("DB_NAME"), "DB_NAME");
+        String schema = require(dotenv.get("DB_SCHEMA"), "DB_SCHEMA");
+        String user = require(dotenv.get("DB_USERNAME"), "DB_USERNAME");
+        String password = require(dotenv.get("DB_PASSWORD"), "DB_PASSWORD");
+
 
         String jdbcUrl = String.format(
                 "jdbc:postgresql://%s:%s/%s?currentSchema=%s",

@@ -1,17 +1,17 @@
 import { useEffect, useMemo } from "react";
 import { z } from "zod";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { format, isValid, parse } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
 
+import { Button } from "@/components/ui/button";
 import {
     Dialog,
     DialogContent,
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
 import {
@@ -21,16 +21,18 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
+import { useGetTags } from "./hooks";
+
 const schema = z.object({
     lastVisitedOn: z.string().optional(),
     nextVisitOn: z.string().optional(),
-    tagsText: z.string().optional(),
+    tags: z.array(z.string()).catch([]),
 });
 
 export type CompanyFilters = {
-    lastVisitedOnYmd?: string | null;
-    nextVisitOnYmd?: string | null;
-    tagsAny?: string[];
+    lastVisitedOnYmd: string | null;
+    nextVisitOnYmd: string | null;
+    tagsAny: string[];
 };
 
 type FormValues = z.infer<typeof schema>;
@@ -54,17 +56,6 @@ function ymdTOMmddyyyy(ymd: string) {
     return isValid(date) ? format(date, "MM/dd/yyyy") : "";
 }
 
-function tagsFromText(s?: string) {
-    if (!s) {
-        return [];
-    }
-
-    return s
-        .split(",")
-        .map((x) => x.trim().toLowerCase())
-        .filter((x) => x.length > 0);
-}
-
 type Properties = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -80,6 +71,18 @@ export function CompaniesFilterDialog({
     onApply,
     onClear,
 }: Properties) {
+    const tagsQuery = useGetTags();
+
+    const tagOptions = useMemo(() => {
+        const raw = tagsQuery.data ?? [];
+        return raw
+            .map((t) => ({
+                key: String(t.tagKey ?? "").trim(),
+                label: String(t.tagName ?? "").trim(),
+            }))
+            .filter((t) => t.key.length > 0 && t.label.length > 0);
+    }, [tagsQuery.data]);
+
     const defaultValues: FormValues = useMemo(
         () => ({
             lastVisitedOn: value.lastVisitedOnYmd
@@ -88,18 +91,31 @@ export function CompaniesFilterDialog({
             nextVisitOn: value.nextVisitOnYmd
                 ? ymdTOMmddyyyy(value.nextVisitOnYmd)
                 : "",
-            tagsText: (value.tagsAny ?? []).join(", "),
+            tags: value.tagsAny ?? [],
         }),
         [value]
     );
 
+    // 1) Create form FIRST
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
         defaultValues,
         mode: "onSubmit",
     });
 
-    const { reset, register, handleSubmit, setValue, formState } = form;
+    // 2) THEN destructure
+    const {
+        reset,
+        register,
+        handleSubmit,
+        setValue,
+        formState,
+        getValues,
+        control,
+    } = form;
+
+    // reactive selection list
+    const selectedTags = useWatch({ control, name: "tags" }) ?? [];
 
     useEffect(() => {
         if (open) {
@@ -129,19 +145,23 @@ export function CompaniesFilterDialog({
         onApply({
             lastVisitedOnYmd: lastYmd,
             nextVisitOnYmd: nextYmd,
-            tagsAny: tagsFromText(values.tagsText),
+            tagsAny: values.tags ?? [],
         });
         onOpenChange(false);
     });
+
+    const lastYmdSelected = parseMMddyyyyToYmd(getValues("lastVisitedOn"));
+    const nextYmdSelected = parseMMddyyyyToYmd(getValues("nextVisitOn"));
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[520px]">
                 <DialogHeader>
-                    <DialogTitle>filters</DialogTitle>
+                    <DialogTitle>Filters</DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={submit} className="space-y-4">
+                    {/* Last Visited */}
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium">
                             Last Visited
@@ -170,23 +190,14 @@ export function CompaniesFilterDialog({
                                     <Calendar
                                         mode="single"
                                         selected={
-                                            parseMMddyyyyToYmd(
-                                                form.getValues("lastVisitedOn")
-                                            )
+                                            lastYmdSelected
                                                 ? new Date(
-                                                      `${parseMMddyyyyToYmd(
-                                                          form.getValues(
-                                                              "lastVisitedOn"
-                                                          )
-                                                      )}T00:00:00`
+                                                      `${lastYmdSelected}T00:00:00`
                                                   )
                                                 : undefined
                                         }
                                         onSelect={(date) => {
-                                            if (!date) {
-                                                return;
-                                            }
-
+                                            if (!date) return;
                                             const ymd = format(
                                                 date,
                                                 "yyyy-MM-dd"
@@ -194,9 +205,7 @@ export function CompaniesFilterDialog({
                                             setValue(
                                                 "lastVisitedOn",
                                                 ymdTOMmddyyyy(ymd),
-                                                {
-                                                    shouldValidate: true,
-                                                }
+                                                { shouldValidate: true }
                                             );
                                         }}
                                     />
@@ -213,6 +222,7 @@ export function CompaniesFilterDialog({
                         ) : null}
                     </div>
 
+                    {/* Next Visit */}
                     <div className="space-y-1.5">
                         <label className="text-sm font-medium">
                             Next Visit
@@ -241,23 +251,14 @@ export function CompaniesFilterDialog({
                                     <Calendar
                                         mode="single"
                                         selected={
-                                            parseMMddyyyyToYmd(
-                                                form.getValues("nextVisitOn")
-                                            )
+                                            nextYmdSelected
                                                 ? new Date(
-                                                      `${parseMMddyyyyToYmd(
-                                                          form.getValues(
-                                                              "nextVisitOn"
-                                                          )
-                                                      )}T00:00:00`
+                                                      `${nextYmdSelected}T00:00:00`
                                                   )
                                                 : undefined
                                         }
                                         onSelect={(date) => {
-                                            if (!date) {
-                                                return;
-                                            }
-
+                                            if (!date) return;
                                             const ymd = format(
                                                 date,
                                                 "yyyy-MM-dd"
@@ -265,9 +266,7 @@ export function CompaniesFilterDialog({
                                             setValue(
                                                 "nextVisitOn",
                                                 ymdTOMmddyyyy(ymd),
-                                                {
-                                                    shouldValidate: true,
-                                                }
+                                                { shouldValidate: true }
                                             );
                                         }}
                                     />
@@ -281,25 +280,59 @@ export function CompaniesFilterDialog({
                         ) : null}
                     </div>
 
+                    {/* Tags */}
                     <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Tags (comma-separated, matches any)
-                        </label>
-                        <Input
-                            placeholder="bigtech, backend"
-                            {...register("tagsText")}
-                        />
+                        <label className="text-sm font-medium">Tags</label>
+
+                        <div className="flex flex-wrap gap-2 rounded-md border p-2 max-h-40 overflow-auto">
+                            {tagOptions.map((t) => {
+                                const selected = selectedTags.includes(t.key);
+
+                                return (
+                                    <button
+                                        key={t.key}
+                                        type="button"
+                                        onClick={() => {
+                                            const next = selected
+                                                ? selectedTags.filter(
+                                                      (k) => k !== t.key
+                                                  )
+                                                : [...selectedTags, t.key];
+
+                                            setValue("tags", next, {
+                                                shouldValidate: true,
+                                            });
+                                        }}
+                                        className={cn(
+                                            "rounded-full border px-3 py-1 text-sm",
+                                            selected
+                                                ? "bg-foreground text-background border-foreground"
+                                                : "bg-background hover:bg-muted"
+                                        )}
+                                    >
+                                        {t.label}
+                                    </button>
+                                );
+                            })}
+                        </div>
+
                         <div className="text-xs text-muted-foreground">
                             Multiple tags match with OR (any-of).
                         </div>
                     </div>
 
+                    {/* Buttons */}
                     <div className="flex items-center justify-between pt-2">
                         <Button
                             type="button"
                             variant="ghost"
                             onClick={() => {
                                 onClear();
+                                reset({
+                                    lastVisitedOn: "",
+                                    nextVisitOn: "",
+                                    tags: [],
+                                });
                                 onOpenChange(false);
                             }}
                         >

@@ -21,14 +21,23 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-import { useCreateCompany } from "./hooks";
+import { useCreateCompany, useGetTags } from "./hooks";
+import { TagMultiSelect, type TagOption } from "./TagMultiSelect";
 
 const schema = z.object({
     companyName: z.string().min(1, "Company Name is required").max(120),
     careersUrl: z.string().url("Enter a valid URL"),
     lastVisitedOn: z.string().optional(),
     revisitAfterDays: z.number().int().min(1, "Min 1").max(10, "Max 20"),
-    tagsText: z.string().optional(),
+    tags: z
+        .array(
+            z.object({
+                key: z.string().min(1),
+                label: z.string().min(1),
+            })
+        )
+        .optional()
+        .catch([]),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -52,17 +61,6 @@ function YmdtoMmddyyyy(ymd: string) {
     return isValid(date) ? format(date, "MM/dd/yyyy") : "";
 }
 
-function tagsFromText(s?: string) {
-    if (!s) {
-        return [];
-    }
-
-    return s
-        .split(",")
-        .map((x) => x.trim())
-        .filter((x) => x.length > 0);
-}
-
 type Properties = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -76,13 +74,45 @@ export function AddCompanyDialog({
 }: Properties) {
     const create = useCreateCompany();
 
+    const tagsQuery = useGetTags();
+
+    const tagOptions: TagOption[] = useMemo(() => {
+        const raw = tagsQuery.data ?? [];
+        return raw
+            .map((tag) => ({
+                key: String(
+                    (tag as { tagKey?: string; key?: string }).tagKey ??
+                        (tag as { key?: string }).key ??
+                        ""
+                ).trim(),
+                label: String(
+                    (
+                        tag as {
+                            tagName?: string;
+                            name?: string;
+                            tagKey?: string;
+                            key?: string;
+                        }
+                    ).tagName ??
+                        (tag as { name?: string }).name ??
+                        (tag as { tagKey?: string }).tagKey ??
+                        (tag as { key?: string }).key ??
+                        ""
+                ).trim(),
+            }))
+            .filter(
+                (tag): tag is TagOption =>
+                    tag.key.length > 0 && tag.label.length > 0
+            );
+    }, [tagsQuery.data]);
+
     const defaultValues: FormValues = useMemo(
         () => ({
             companyName: initialName ?? "",
             careersUrl: "",
             lastVisitedOn: "",
             revisitAfterDays: 7,
-            tagsText: "",
+            tags: [],
         }),
         [initialName]
     );
@@ -127,11 +157,13 @@ export function AddCompanyDialog({
             careersUrl: values.careersUrl.trim(),
             lastVisitedOn: lastVisistedYmd,
             revisitAfterDays: values.revisitAfterDays,
-            tags: tagsFromText(values.tagsText),
+            tags: (values.tags ?? []).map((tag) => tag.key),
         });
 
         onOpenChange(false);
     });
+
+    const selectedTags = useWatch({ control, name: "tags" }) ?? [];
 
     return (
         <Dialog
@@ -270,15 +302,15 @@ export function AddCompanyDialog({
                         )}
                     </div>
 
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Tags (comma-separate)
-                        </label>
-                        <Input
-                            placeholder="bigtech, backend, platform"
-                            {...register("tagsText")}
-                        />
-                    </div>
+                    <TagMultiSelect
+                        label="Tags"
+                        options={tagOptions}
+                        value={selectedTags}
+                        onChange={(next) =>
+                            setValue("tags", next, { shouldValidate: true })
+                        }
+                        disabled={create.isPending}
+                    />
 
                     <div className="flex items-center justify-end gap-2 pt-2">
                         <Button

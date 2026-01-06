@@ -5,5 +5,12 @@ export type CompanyRow = {
     lastVisitedOn: string | null;
     nextVisitOn: string | null;
     revisitAfterDays: number;
-    tags: string[];
+    tags?: TagDto[];
+    createdAt: string;
+    updatedAt: string;
+};
+
+export type TagDto = {
+    tagKey: string;
+    tagName: string;
 };

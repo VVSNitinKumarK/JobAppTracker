@@ -1,5 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { getChecklistByDate, setChecklistCompleted } from "./api";
+import {
+    getChecklistByDate,
+    setChecklistCompleted,
+    submitChecklist,
+} from "./api";
 import type { ChecklistItem } from "./types";
 
 export const checklistKeys = {
@@ -61,6 +65,25 @@ export function useToggleChecklistItem(date: string) {
         onSettled: async () => {
             await queryClient.invalidateQueries({
                 queryKey: checklistKeys.byDate(date),
+            });
+        },
+    });
+}
+
+export function useSubmitChecklist(date: string) {
+    const queryClient = useQueryClient();
+
+    return useMutation({
+        mutationFn: async () => {
+            await submitChecklist(date);
+        },
+        onSuccess: async () => {
+            await queryClient.invalidateQueries({
+                queryKey: checklistKeys.byDate(date),
+            });
+
+            await queryClient.invalidateQueries({
+                queryKey: ["companies"],
             });
         },
     });

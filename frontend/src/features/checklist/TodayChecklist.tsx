@@ -1,8 +1,13 @@
 import { format } from "date-fns";
 import { Check } from "lucide-react";
 import { cn } from "../../lib/utils";
-import { useChecklist, useToggleChecklistItem } from "./hooks";
+import {
+    useChecklist,
+    useSubmitChecklist,
+    useToggleChecklistItem,
+} from "./hooks";
 import type { ChecklistItem } from "./types";
+import { Button } from "@/components/ui/button";
 
 type Props = {
     selectedDate: Date;
@@ -84,92 +89,119 @@ export function TodayChecklist({ selectedDate }: Props) {
     const { data, isLoading, isError } = useChecklist(dateYmd);
     const toggle = useToggleChecklistItem(dateYmd);
 
+    const submit = useSubmitChecklist(dateYmd);
+
     const items = data ?? [];
     const { today, overdue } = groupItems(items, dateYmd);
 
+    const completedCount = items.filter((x) => x.completed).length;
+    const canSubmit = completedCount > 0 && !isLoading && !isError;
+
     return (
-        <section className="h-full w-full rounded-lg border bg-background p-4">
+        <section className="h-full w-full rounded-lg border bg-background p-4 flex flex-col">
             <div className="flex items-start justify-between gap-3">
                 <div>
                     <h2 className="text-base font-semibold">Check Today</h2>
                     <div className="mt-1 text-xs text-muted-foreground">
                         {dateYmd}
                     </div>
+                    {completedCount > 0 ? (
+                        <div className="mt-1 text-xs text-muted-foreground">
+                            {completedCount} marked complete
+                        </div>
+                    ) : null}
                 </div>
             </div>
 
-            <div className="mt-4 space-y-5 max-h-[260px] overflow-y-auto pr-1">
-                {isLoading ? (
-                    <div className="text-sm text-muted-foreground">
-                        Loading checklist…
-                    </div>
-                ) : null}
-
-                {isError ? (
-                    <div className="text-sm text-red-600">
-                        Failed to load checklist.
-                    </div>
-                ) : null}
-
-                {!isLoading && !isError ? (
-                    <>
-                        <div>
-                            <div className="mb-2 text-sm font-semibold">
-                                Today
-                            </div>
-                            {today.length === 0 ? (
-                                <div className="text-sm text-muted-foreground">
-                                    No items due today.
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {today.map((it) => (
-                                        <ChecklistPill
-                                            key={it.companyId}
-                                            item={it}
-                                            tint="today"
-                                            toggling={toggle.isPending}
-                                            onToggle={(next) =>
-                                                toggle.mutate({
-                                                    companyId: it.companyId,
-                                                    completed: next,
-                                                })
-                                            }
-                                        />
-                                    ))}
-                                </div>
-                            )}
+            {/* Scroll area wrapper takes remaining height */}
+            <div className="mt-4 flex-1">
+                <div className="space-y-5 max-h-[260px] overflow-y-auto pr-1">
+                    {isLoading ? (
+                        <div className="text-sm text-muted-foreground">
+                            Loading checklist…
                         </div>
+                    ) : null}
 
-                        <div>
-                            <div className="mb-2 text-sm font-semibold text-red-700">
-                                Overdue
-                            </div>
-                            {overdue.length === 0 ? (
-                                <div className="text-sm text-muted-foreground">
-                                    No overdue items.
-                                </div>
-                            ) : (
-                                <div className="flex flex-col gap-2">
-                                    {overdue.map((it) => (
-                                        <ChecklistPill
-                                            key={it.companyId}
-                                            item={it}
-                                            tint="overdue"
-                                            toggling={toggle.isPending}
-                                            onToggle={(next) =>
-                                                toggle.mutate({
-                                                    companyId: it.companyId,
-                                                    completed: next,
-                                                })
-                                            }
-                                        />
-                                    ))}
-                                </div>
-                            )}
+                    {isError ? (
+                        <div className="text-sm text-red-600">
+                            Failed to load checklist.
                         </div>
-                    </>
-                ) : null}
+                    ) : null}
+
+                    {!isLoading && !isError ? (
+                        <>
+                            <div>
+                                <div className="mb-2 text-sm font-semibold">
+                                    Today
+                                </div>
+                                {today.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        No items due today.
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        {today.map((it) => (
+                                            <ChecklistPill
+                                                key={it.companyId}
+                                                item={it}
+                                                tint="today"
+                                                toggling={toggle.isPending}
+                                                onToggle={(next) =>
+                                                    toggle.mutate({
+                                                        companyId: it.companyId,
+                                                        completed: next,
+                                                    })
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            <div>
+                                <div className="mb-2 text-sm font-semibold text-red-700">
+                                    Overdue
+                                </div>
+                                {overdue.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        No overdue items.
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        {overdue.map((it) => (
+                                            <ChecklistPill
+                                                key={it.companyId}
+                                                item={it}
+                                                tint="overdue"
+                                                toggling={toggle.isPending}
+                                                onToggle={(next) =>
+                                                    toggle.mutate({
+                                                        companyId: it.companyId,
+                                                        completed: next,
+                                                    })
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        </>
+                    ) : null}
+                </div>
+            </div>
+
+            {/* Footer pinned to bottom */}
+            <div className="mt-auto pt-3 flex justify-end border-t">
+                <Button
+                    type="button"
+                    size="sm"
+                    disabled={!canSubmit || submit.isPending}
+                    onClick={async () => {
+                        await submit.mutateAsync();
+                    }}
+                >
+                    {submit.isPending ? "Submitting..." : "Submit"}
+                </Button>
             </div>
         </section>
     );

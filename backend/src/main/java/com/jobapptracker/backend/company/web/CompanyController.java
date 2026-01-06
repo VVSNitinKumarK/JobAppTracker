@@ -28,9 +28,10 @@ public class CompanyController {
             @RequestParam(required = false) String q,
             @RequestParam(required = false) String tags,
             @RequestParam(required = false) String due,
-            @RequestParam(required = false) String date
+            @RequestParam(required = false) String date,
+            @RequestParam(required = false) String lastVisitedOn
     ) {
-        List<CompanyDto> out = companyService.listCompanies(page, size, q, tags, due, date);
+        List<CompanyDto> out = companyService.listCompanies(page, size, q, tags, due, date, lastVisitedOn);
         return ResponseEntity.ok(out);
     }
 

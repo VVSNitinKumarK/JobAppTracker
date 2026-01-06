@@ -13,8 +13,8 @@ import java.sql.Types;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
-
 
 @Repository
 public class CompanyRepository {
@@ -32,52 +32,90 @@ public class CompanyRepository {
             String q,
             List<String> tagsAny,
             DueFilter due,
-            LocalDate date
+            LocalDate date,
+            LocalDate lastVisitedOn
     ) {
         boolean hasDateFilter = (date != null);
         DueFilter effectiveDue = hasDateFilter ? null : due;
 
         StringBuilder sqlQuery = new StringBuilder("""
                 SELECT
-                    company_id,
-                    company_name,
-                    careers_url,
-                    last_visited_on,
-                    revisit_after_days,
-                    tags,
-                    next_visit_on,
-                    created_at,
-                    updated_at
-                FROM company_tracking
+                    company.company_id,
+                    company.company_name,
+                    company.careers_url,
+                    company.last_visited_on,
+                    company.revisit_after_days,
+                    COALESCE(
+                        array_agg(t.tag_key ORDER BY t.tag_name)
+                            FILTER (WHERE t.tag_id IS NOT NULL),
+                        '{}'::text[]
+                    ) AS tag_keys,
+                    COALESCE(
+                        array_agg(t.tag_name ORDER BY t.tag_name)
+                            FILTER (WHERE t.tag_id IS NOT NULL),
+                        '{}'::text[]
+                    ) AS tag_names,
+                    company.next_visit_on,
+                    company.created_at,
+                    company.updated_at
+                FROM jobapps.company_tracking company
+                LEFT JOIN jobapps.company_tag ct ON ct.company_id = company.company_id
+                LEFT JOIN jobapps.tag t ON t.tag_id = ct.tag_id
                 WHERE 1=1
                 """);
 
         List<Object> parameters = new ArrayList<>();
 
         if (q != null && !q.isBlank()) {
-            sqlQuery.append(" AND company_name ILIKE ? ");
+            sqlQuery.append(" AND company.company_name ILIKE ? ");
             parameters.add(q.trim() + "%");
         }
 
+        // Filter by tag KEYs (OR / any-of)
         if (tagsAny != null && !tagsAny.isEmpty()) {
-            sqlQuery.append(" AND tags && ? ");
+            sqlQuery.append("""
+                    AND EXISTS (
+                        SELECT 1
+                        FROM jobapps.company_tag ct2
+                        JOIN jobapps.tag t2 ON t2.tag_id = ct2.tag_id
+                        WHERE ct2.company_id = company.company_id
+                          AND t2.tag_key = ANY(?::text[])
+                    )
+                    """);
             parameters.add(tagsAny);
         }
 
         if (hasDateFilter) {
-            sqlQuery.append(" AND next_visit_on = ? ");
+            sqlQuery.append(" AND company.next_visit_on = ? ");
             parameters.add(date);
+        }
+
+        if (lastVisitedOn != null) {
+            sqlQuery.append(" AND company.last_visited_on = ? ");
+            parameters.add(lastVisitedOn);
         }
 
         if (effectiveDue != null) {
             switch (effectiveDue) {
-                case TODAY -> sqlQuery.append(" AND next_visit_on <= CURRENT_DATE ");
-                case OVERDUE -> sqlQuery.append(" AND next_visit_on < CURRENT_DATE ");
-                case UPCOMING -> sqlQuery.append(" AND next_visit_on > CURRENT_DATE ");
+                case TODAY -> sqlQuery.append(" AND company.next_visit_on <= CURRENT_DATE ");
+                case OVERDUE -> sqlQuery.append(" AND company.next_visit_on < CURRENT_DATE ");
+                case UPCOMING -> sqlQuery.append(" AND company.next_visit_on > CURRENT_DATE ");
             }
         }
 
-        sqlQuery.append(" ORDER BY company_name ASC ");
+        sqlQuery.append("""
+                GROUP BY
+                    company.company_id,
+                    company.company_name,
+                    company.careers_url,
+                    company.last_visited_on,
+                    company.revisit_after_days,
+                    company.next_visit_on,
+                    company.created_at,
+                    company.updated_at
+                """);
+
+        sqlQuery.append(" ORDER BY company.company_name ASC ");
         sqlQuery.append(" LIMIT ? OFFSET ? ");
 
         int limit = size;
@@ -92,7 +130,9 @@ public class CompanyRepository {
         );
     }
 
-    private PreparedStatement prepareStatement(Connection con, String sqlQuery, List<Object> parameters) throws java.sql.SQLException {
+    private PreparedStatement prepareStatement(Connection con, String sqlQuery, List<Object> parameters)
+            throws java.sql.SQLException {
+
         PreparedStatement preparedStatement = con.prepareStatement(sqlQuery);
 
         int index = 1;
@@ -108,12 +148,13 @@ public class CompanyRepository {
                 preparedStatement.setInt(index, integer);
             } else if (parameter instanceof String string) {
                 preparedStatement.setString(index, string);
+            } else if (parameter instanceof UUID uuid) {
+                preparedStatement.setObject(index, uuid);
             } else {
                 preparedStatement.setObject(index, parameter);
             }
             index++;
         }
-
 
         return preparedStatement;
     }
@@ -123,73 +164,52 @@ public class CompanyRepository {
             String careersUrl,
             LocalDate lastVisitedOn,
             int revisitAfterDays,
-            List<String> tags
+            List<String> tagNamesRaw
     ) {
         String sqlQuery = """
-                INSERT INTO company_tracking (
+                INSERT INTO jobapps.company_tracking (
                     company_name,
                     careers_url,
                     last_visited_on,
-                    revisit_after_days,
-                    tags
+                    revisit_after_days
                 )
-                VALUES (?, ?, ?, ?, ?::text[])
-                RETURNING
-                    company_id,
-                    company_name,
-                    careers_url,
-                    last_visited_on,
-                    revisit_after_days,
-                    tags,
-                    next_visit_on,
-                    created_at,
-                    updated_at
+                VALUES (?, ?, ?, ?)
+                RETURNING company_id
                 """;
 
-        List<CompanyDto> results = jdbcTemplate.query(con -> {
-            PreparedStatement ps = con.prepareStatement(sqlQuery);
-
-            ps.setString(1, companyName);
-            ps.setString(2, careersUrl);
+        UUID companyId = jdbcTemplate.query(con -> {
+            PreparedStatement preparedStatement = con.prepareStatement(sqlQuery);
+            preparedStatement.setString(1, companyName);
+            preparedStatement.setString(2, careersUrl);
 
             if (lastVisitedOn == null) {
-                ps.setNull(3, Types.DATE);
+                preparedStatement.setNull(3, Types.DATE);
             } else {
-                ps.setDate(3, Date.valueOf(lastVisitedOn));
+                preparedStatement.setDate(3, Date.valueOf(lastVisitedOn));
             }
 
-            ps.setInt(4, revisitAfterDays);
+            preparedStatement.setInt(4, revisitAfterDays);
+            return preparedStatement;
+        }, resultSet -> resultSet.next() ? resultSet.getObject("company_id", UUID.class) : null);
 
-            String[] array = tags.stream()
-                    .map(String::trim)
-                    .filter(s -> !s.isBlank())
-                    .distinct()
-                    .toArray(String[]::new);
-            ps.setArray(5, con.createArrayOf("text", array));
-
-            return ps;
-        }, rowMapper);
-
-        if (results.isEmpty()) {
+        if (companyId == null) {
             throw new RuntimeException("Failed to insert company");
         }
 
-        return results.getFirst();
+        // Tags now live in jobapps.tag + jobapps.company_tag
+        setCompanyTags(companyId, tagNamesRaw);
+
+        return findCompanyById(companyId);
     }
 
-    public CompanyDto updateCompany (
+    public CompanyDto updateCompany(
             UUID companyId,
             @Nullable String companyName,
             @Nullable String careersUrl,
             @Nullable LocalDate lastVisitedOn,
             @Nullable Integer revisitAfterDays,
-            @Nullable List<String> tags
+            @Nullable List<String> tagNamesRaw
     ) {
-        StringBuilder sqlQuery = new StringBuilder("""
-                UPDATE company_tracking
-                SET
-                """);
-
         List<Object> parameters = new ArrayList<>();
         List<String> sets = new ArrayList<>();
 
@@ -213,94 +233,67 @@ public class CompanyRepository {
             parameters.add(revisitAfterDays);
         }
 
-        if (tags != null) {
-            sets.add("tags = ?");
-            parameters.add(tags);
-        }
+        boolean hasScalarUpdate = !sets.isEmpty();
 
-        if (sets.isEmpty()) {
-            throw new IllegalArgumentException("No fields to update");
-        }
+        if (hasScalarUpdate) {
+            sets.add("updated_at = now()");
 
-        sets.add("updated_at = now()");
+            String sqlQuery = """
+                    UPDATE jobapps.company_tracking
+                    SET %s
+                    WHERE company_id = ?
+                    """.formatted(String.join(", ", sets));
 
-        sqlQuery.append(String.join(", ", sets));
-        sqlQuery.append("""
-                
-                WHERE company_id = ?
-                RETURNING
-                    company_id,
-                    company_name,
-                    careers_url,
-                    last_visited_on,
-                    revisit_after_days,
-                    tags,
-                    next_visit_on,
-                    created_at,
-                    updated_at
-                """);
+            parameters.add(companyId);
 
-        parameters.add(companyId);
-
-        List<CompanyDto> results = jdbcTemplate.query( con -> {
-                PreparedStatement ps = con.prepareStatement(sqlQuery.toString());
-
-        int idx = 1;
-        for (Object param : parameters) {
-            if (param == null) {
-                ps.setNull(idx, Types.NULL);
-            } else if (param instanceof List<?> listVal) {
-                // IMPORTANT: bind as SQL array explicitly
-                String[] array = listVal.stream()
-                        .map(String::valueOf)
-                        .toArray(String[]::new);
-                ps.setArray(idx, con.createArrayOf("text", array));
-            } else if (param instanceof LocalDate d) {
-                ps.setDate(idx, Date.valueOf(d));
-            } else if (param instanceof Integer i) {
-                ps.setInt(idx, i);
-            } else if (param instanceof UUID u) {
-                ps.setObject(idx, u);
-            } else if (param instanceof String s) {
-                ps.setString(idx, s);
-            } else {
-                ps.setObject(idx, param);
+            int updated = jdbcTemplate.update(con -> prepareStatement(con, sqlQuery, parameters));
+            if (updated == 0) {
+                return null; // not found
             }
-            idx++;
+        } else {
+            // No scalar fields; still must verify company exists if tags update might happen.
+            Integer exists = jdbcTemplate.query(
+                    "SELECT 1 FROM jobapps.company_tracking WHERE company_id = ?",
+                    resultSet -> resultSet.next() ? 1 : null,
+                    companyId
+            );
+            if (exists == null) {
+                return null;
+            }
         }
 
-        return ps;
-    }, rowMapper);
+        if (tagNamesRaw != null) {
+            setCompanyTags(companyId, tagNamesRaw);
+            jdbcTemplate.update(
+                    "UPDATE jobapps.company_tracking SET updated_at = now() WHERE company_id = ?",
+                    companyId
+            );
+        }
 
-        return results.isEmpty() ? null : results.getFirst();
+        return findCompanyById(companyId);
     }
 
     public CompanyDto markVisitedToday(UUID companyId) {
         String sqlQuery = """
-                UPDATE company_tracking
+                UPDATE jobapps.company_tracking
                 SET
                     last_visited_on = CURRENT_DATE,
                     updated_at = now()
                 WHERE company_id = ?
-                RETURNING
-                    company_id,
-                    company_name,
-                    careers_url,
-                    last_visited_on,
-                    revisit_after_days,
-                    tags,
-                    next_visit_on,
-                    created_at,
-                    updated_at
+                RETURNING company_id
                 """;
 
-        List<CompanyDto> results = jdbcTemplate.query(con -> {
+        UUID updatedId = jdbcTemplate.query(con -> {
             PreparedStatement preparedStatement = con.prepareStatement(sqlQuery);
             preparedStatement.setObject(1, companyId);
             return preparedStatement;
-        }, rowMapper);
+        }, resultSet -> resultSet.next() ? resultSet.getObject("company_id", UUID.class) : null);
 
-        return results.isEmpty() ? null : results.getFirst();
+        if (updatedId == null) {
+            return null;
+        }
+
+        return findCompanyById(companyId);
     }
 
     public int deleteCompany(UUID companyId) {
@@ -313,6 +306,114 @@ public class CompanyRepository {
             PreparedStatement preparedStatement = con.prepareStatement(sqlQuery);
             preparedStatement.setObject(1, companyId);
             return preparedStatement;
+        });
+    }
+
+    private CompanyDto findCompanyById(UUID companyId) {
+        String sqlQuery = """
+                SELECT
+                    company.company_id,
+                    company.company_name,
+                    company.careers_url,
+                    company.last_visited_on,
+                    company.revisit_after_days,
+                    COALESCE(
+                        array_agg(t.tag_key ORDER BY t.tag_name)
+                            FILTER (WHERE t.tag_id IS NOT NULL),
+                        '{}'::text[]
+                    ) AS tag_keys,
+                    COALESCE(
+                        array_agg(t.tag_name ORDER BY t.tag_name)
+                            FILTER (WHERE t.tag_id IS NOT NULL),
+                        '{}'::text[]
+                    ) AS tag_names,
+                    company.next_visit_on,
+                    company.created_at,
+                    company.updated_at
+                FROM jobapps.company_tracking company
+                LEFT JOIN jobapps.company_tag ct ON ct.company_id = company.company_id
+                LEFT JOIN jobapps.tag t ON t.tag_id = ct.tag_id
+                WHERE company.company_id = ?
+                GROUP BY
+                    company.company_id,
+                    company.company_name,
+                    company.careers_url,
+                    company.last_visited_on,
+                    company.revisit_after_days,
+                    company.next_visit_on,
+                    company.created_at,
+                    company.updated_at
+                """;
+
+        List<CompanyDto> rows = jdbcTemplate.query(sqlQuery, rowMapper, companyId);
+        return rows.isEmpty() ? null : rows.getFirst();
+    }
+
+    /**
+     * Takes raw "display names" from the client (e.g., "Big Tech", "backend", "ML infra"),
+     * creates tags if missing (by tag_key), then sets the mapping for the company.
+     *
+     * NOTE: This expects CompanyTagUtil.toTagKey(...) to normalize into a stable key (e.g. "big-tech" or "bigtech").
+     */
+    private void setCompanyTags(UUID companyId, List<String> tagNamesRaw) {
+        if (tagNamesRaw == null) {
+            tagNamesRaw = List.of();
+        }
+
+        List<String> displayNames = tagNamesRaw.stream()
+                .filter(Objects::nonNull)
+                .map(String::trim)
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
+
+        if (displayNames.isEmpty()) {
+            jdbcTemplate.update("DELETE FROM jobapps.company_tag WHERE company_id = ?", companyId);
+            return;
+        }
+
+        List<String> keys = displayNames.stream()
+                .map(CompanyTagUtil::toTagKey)
+                .distinct()
+                .toList();
+
+        // Ensure tags exist
+        String insertTagSql = """
+                INSERT INTO jobapps.tag (tag_name, tag_key)
+                VALUES (?, ?)
+                ON CONFLICT (tag_key) DO NOTHING
+                """;
+
+        jdbcTemplate.batchUpdate(insertTagSql, displayNames, displayNames.size(), (preparedStatement, tagName) -> {
+            preparedStatement.setString(1, tagName);
+            preparedStatement.setString(2, CompanyTagUtil.toTagKey(tagName));
+        });
+
+        // Fetch tag_ids for these keys
+        String fetchSql = """
+                SELECT tag_id
+                FROM jobapps.tag
+                WHERE tag_key = ANY(?::text[])
+                """;
+
+        List<UUID> tagIds = jdbcTemplate.query(con -> {
+            PreparedStatement preparedStatement = con.prepareStatement(fetchSql);
+            preparedStatement.setArray(1, con.createArrayOf("text", keys.toArray(String[]::new)));
+            return preparedStatement;
+        }, (resultSet, rowNum) -> resultSet.getObject("tag_id", UUID.class));
+
+        // Replace mappings
+        jdbcTemplate.update("DELETE FROM jobapps.company_tag WHERE company_id = ?", companyId);
+
+        String insertMapSql = """
+                INSERT INTO jobapps.company_tag (company_id, tag_id)
+                VALUES (?, ?)
+                ON CONFLICT DO NOTHING
+                """;
+
+        jdbcTemplate.batchUpdate(insertMapSql, tagIds, tagIds.size(), (preparedStatement, tagId) -> {
+            preparedStatement.setObject(1, companyId);
+            preparedStatement.setObject(2, tagId);
         });
     }
 }

@@ -1,5 +1,7 @@
 package com.jobapptracker.backend.company.dto;
 
+import com.jobapptracker.backend.tag.dto.TagDto;
+
 import java.time.LocalDate;
 import java.util.List;
 
@@ -8,5 +10,5 @@ public record CompanyUpdateRequest(
         String careersUrl,
         LocalDate lastVisitedOn,
         Integer revisitAfterDays,
-        List<String> tags
+        List<TagDto> tags
 ) {}

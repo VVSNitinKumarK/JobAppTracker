@@ -22,14 +22,20 @@ import {
 import { cn } from "@/lib/utils";
 
 import type { CompanyRow } from "./types";
-import { useUpdateCompany } from "./hooks";
+import { useGetTags, useUpdateCompany } from "./hooks";
+import { TagMultiSelect, type TagOption } from "./TagMultiSelect";
 
 const schema = z.object({
     companyName: z.string().min(1, "Company Name is required").max(120),
     careersUrl: z.string().url("Enter a valid URL"),
     lastVisitedOn: z.string().optional(),
     revisitAfterDays: z.number().int().min(1, "Min 1").max(20, "Max 20"),
-    tagsText: z.string().optional(),
+    tags: z.array(
+        z.object({
+            key: z.string().min(1),
+            label: z.string().min(1),
+        })
+    ),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -53,17 +59,6 @@ function ymdToMmddyyyy(ymd: string) {
     return isValid(date) ? format(date, "MM/dd/yyyy") : "";
 }
 
-function tagsFromText(s?: string) {
-    if (!s) {
-        return [];
-    }
-
-    return s
-        .split(",")
-        .map((x) => x.trim())
-        .filter((x) => x.length > 0);
-}
-
 type Properties = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -77,18 +72,58 @@ export function UpdateCompanyDialog({
 }: Properties) {
     const update = useUpdateCompany();
 
-    const defaultValues: FormValues = useMemo(
-        () => ({
+    const tagsQuery = useGetTags();
+
+    const tagOptions: TagOption[] = useMemo(() => {
+        const raw = tagsQuery.data ?? [];
+        return raw
+            .map((tag) => ({
+                key: String(
+                    (tag as { tagKey?: string; key?: string }).tagKey ??
+                        (tag as { key?: string }).key ??
+                        ""
+                ).trim(),
+                label: String(
+                    (
+                        tag as {
+                            tagName?: string;
+                            name?: string;
+                            tagKey?: string;
+                            key?: string;
+                        }
+                    ).tagName ??
+                        (tag as { name?: string }).name ??
+                        (tag as { tagKey?: string }).tagKey ??
+                        (tag as { key?: string }).key ??
+                        ""
+                ).trim(),
+            }))
+            .filter(
+                (t): t is TagOption => t.key.length > 0 && t.label.length > 0
+            );
+    }, [tagsQuery.data]);
+
+    const defaultValues: FormValues = useMemo(() => {
+        const companyTagKeys = (company?.tags ?? []).map((t) => t.tagKey);
+
+        // show nice casing/label if exists in /tags results, else fallback label=key
+        const selectedTags: TagOption[] = companyTagKeys
+            .filter((tag) => tag.length > 0)
+            .map(
+                (k) =>
+                    tagOptions.find((o) => o.key === k) ?? { key: k, label: k }
+            );
+
+        return {
             companyName: company?.companyName ?? "",
             careersUrl: company?.careersUrl ?? "",
             lastVisitedOn: company?.lastVisitedOn
                 ? ymdToMmddyyyy(company.lastVisitedOn)
                 : "",
             revisitAfterDays: company?.revisitAfterDays ?? 7,
-            tagsText: (company?.tags ?? []).join(", "),
-        }),
-        [company]
-    );
+            tags: selectedTags,
+        };
+    }, [company, tagOptions]);
 
     const form = useForm<FormValues>({
         resolver: zodResolver(schema),
@@ -135,19 +170,21 @@ export function UpdateCompanyDialog({
                 careersUrl: values.careersUrl.trim(),
                 lastVisitedOn: lastVisitedYmd ?? undefined,
                 revisitAfterDays: values.revisitAfterDays,
-                tags: tagsFromText(values.tagsText),
+                tags: (values.tags ?? []).map((tag) => tag.key),
             },
         });
 
         onOpenChange(false);
     });
 
+    const selectedTags = useWatch({ control, name: "tags" }) ?? [];
+
     return (
         <Dialog
             open={open}
             onOpenChange={(v) => !update.isPending && onOpenChange(v)}
         >
-            <DialogContent className="sm:max0w-[520px]">
+            <DialogContent className="sm:maxw-[520px]">
                 <DialogHeader>
                     <DialogTitle>Update Company</DialogTitle>
                 </DialogHeader>
@@ -174,7 +211,7 @@ export function UpdateCompanyDialog({
                         </label>
                         <Input
                             placeholder="https://jobs.netflix.com"
-                            {...register("companyName")}
+                            {...register("careersUrl")}
                         />
                         {errors.careersUrl ? (
                             <div className="text-xs text-red-600">
@@ -201,7 +238,7 @@ export function UpdateCompanyDialog({
                                         type="button"
                                         aria-label="Pick date"
                                         className={cn(
-                                            "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foireground",
+                                            "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground",
                                             "hover:bg-muted hover:text-foreground",
                                             "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                                         )}
@@ -280,15 +317,15 @@ export function UpdateCompanyDialog({
                         )}
                     </div>
 
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Tags (comma-separate)
-                        </label>
-                        <Input
-                            placeholder="bigtech, backend, platform"
-                            {...register("tagsText")}
-                        />
-                    </div>
+                    <TagMultiSelect
+                        label="Tags"
+                        options={tagOptions}
+                        value={selectedTags}
+                        onChange={(next) =>
+                            setValue("tags", next, { shouldValidate: true })
+                        }
+                        disabled={update.isPending}
+                    />
 
                     <div className="flex items-center justify-end gap-2 pt-2">
                         <Button

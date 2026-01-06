@@ -1,6 +1,7 @@
 package com.jobapptracker.backend.company.dto;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.jobapptracker.backend.tag.dto.TagDto;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -13,5 +14,5 @@ public record CompanyCreateRequest(
    LocalDate lastVisitedOn,
 
    Integer revisitAfterDays,
-   List<String> tags
+   List<TagDto> tags
 ) {}
