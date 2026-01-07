@@ -108,7 +108,7 @@ export function TagMultiSelect({
             return match;
         }
 
-        const key = normalize(trimmed).replace(/\s+/g, "_");
+        const key = normalize(trimmed).replace(/[^a-z0-9]/g, "");
         return { key, label: trimmed };
     }
 

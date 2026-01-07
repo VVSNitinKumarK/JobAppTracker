@@ -2,6 +2,7 @@ package com.jobapptracker.backend.company.repository;
 
 import com.jobapptracker.backend.company.dto.CompanyDto;
 import com.jobapptracker.backend.company.web.DueFilter;
+import com.jobapptracker.backend.tag.repository.TagRepository;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.lang.Nullable;
 import org.springframework.stereotype.Repository;
@@ -20,10 +21,12 @@ import java.util.UUID;
 public class CompanyRepository {
 
     private final JdbcTemplate jdbcTemplate;
+    private final TagRepository tagRepository;
     private final CompanyRowMapper rowMapper = new CompanyRowMapper();
 
-    public CompanyRepository(JdbcTemplate template) {
+    public CompanyRepository(JdbcTemplate template, TagRepository tagRepository) {
         this.jdbcTemplate = template;
+        this.tagRepository = tagRepository;
     }
 
     public List<CompanyDto> findCompanies(
@@ -372,22 +375,14 @@ public class CompanyRepository {
             return;
         }
 
+        // Ensure tags exist using TagRepository (removes duplication)
+        tagRepository.ensureTagsExist(displayNames);
+
+        // Generate keys for fetching tag IDs
         List<String> keys = displayNames.stream()
                 .map(CompanyTagUtil::toTagKey)
                 .distinct()
                 .toList();
-
-        // Ensure tags exist
-        String insertTagSql = """
-                INSERT INTO jobapps.tag (tag_name, tag_key)
-                VALUES (?, ?)
-                ON CONFLICT (tag_key) DO NOTHING
-                """;
-
-        jdbcTemplate.batchUpdate(insertTagSql, displayNames, displayNames.size(), (preparedStatement, tagName) -> {
-            preparedStatement.setString(1, tagName);
-            preparedStatement.setString(2, CompanyTagUtil.toTagKey(tagName));
-        });
 
         // Fetch tag_ids for these keys
         String fetchSql = """

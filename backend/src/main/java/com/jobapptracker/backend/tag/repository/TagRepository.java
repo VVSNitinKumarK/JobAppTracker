@@ -1,5 +1,6 @@
 package com.jobapptracker.backend.tag.repository;
 
+import com.jobapptracker.backend.company.repository.CompanyTagUtil;
 import com.jobapptracker.backend.tag.dto.TagDto;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -31,8 +32,14 @@ public class TagRepository {
         );
     }
 
-    public void ensureTagExist(List<String> tagKeys) {
-        if (tagKeys == null || tagKeys.isEmpty()) {
+    /**
+     * Ensures tags exist in the database by their display names.
+     * Creates tag_key by normalizing the display name.
+     *
+     * @param tagDisplayNames List of tag display names (e.g., "Big Tech", "ML/AI")
+     */
+    public void ensureTagsExist(List<String> tagDisplayNames) {
+        if (tagDisplayNames == null || tagDisplayNames.isEmpty()) {
             return;
         }
 
@@ -42,9 +49,10 @@ public class TagRepository {
             ON CONFLICT (tag_key) DO NOTHING
         """;
 
-        jdbcTemplate.batchUpdate(sqlQuery, tagKeys, 200, (prepareStatement, key) -> {
+        jdbcTemplate.batchUpdate(sqlQuery, tagDisplayNames, 200, (prepareStatement, displayName) -> {
+            String key = CompanyTagUtil.toTagKey(displayName);
             prepareStatement.setString(1, key);
-            prepareStatement.setString(2, key);
+            prepareStatement.setString(2, displayName);
         });
     }
 }
