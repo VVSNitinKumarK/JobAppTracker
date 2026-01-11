@@ -42,11 +42,19 @@ export function useToggleChecklistItem(date: string) {
                         return old;
                     }
 
-                    return old.map((item) =>
-                        item.companyId === vars.companyId
-                            ? { ...item, completed: vars.completed }
-                            : item
+                    const idx = old.findIndex(
+                        (x) => x.companyId === vars.companyId
                     );
+
+                    if (idx > 0) {
+                        return old.map((item) =>
+                            item.companyId === vars.companyId
+                                ? { ...item, completed: vars.completed }
+                                : item
+                        );
+                    }
+
+                    return old;
                 }
             );
 

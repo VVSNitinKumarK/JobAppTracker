@@ -50,12 +50,6 @@ public class CompanyController {
         return ResponseEntity.ok(updated);
     }
 
-    @PostMapping("/{companyId}/mark-visited-today")
-    public ResponseEntity<CompanyDto> markVisitedToday(@PathVariable UUID companyId) {
-        CompanyDto updated = companyService.markVisitedToday(companyId);
-        return ResponseEntity.ok(updated);
-    }
-
     @DeleteMapping("/{companyId}")
     public ResponseEntity<Void> deleteCompany(@PathVariable UUID companyId) {
         companyService.deleteCompany(companyId);

@@ -276,29 +276,6 @@ public class CompanyRepository {
         return findCompanyById(companyId);
     }
 
-    public CompanyDto markVisitedToday(UUID companyId) {
-        String sqlQuery = """
-                UPDATE jobapps.company_tracking
-                SET
-                    last_visited_on = CURRENT_DATE,
-                    updated_at = now()
-                WHERE company_id = ?
-                RETURNING company_id
-                """;
-
-        UUID updatedId = jdbcTemplate.query(con -> {
-            PreparedStatement preparedStatement = con.prepareStatement(sqlQuery);
-            preparedStatement.setObject(1, companyId);
-            return preparedStatement;
-        }, resultSet -> resultSet.next() ? resultSet.getObject("company_id", UUID.class) : null);
-
-        if (updatedId == null) {
-            return null;
-        }
-
-        return findCompanyById(companyId);
-    }
-
     public int deleteCompany(UUID companyId) {
         String sqlQuery = """
                 DELETE FROM jobapps.company_tracking

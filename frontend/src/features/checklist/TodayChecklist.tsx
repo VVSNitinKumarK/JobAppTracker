@@ -1,5 +1,11 @@
 import { format } from "date-fns";
-import { Check } from "lucide-react";
+import { Check, Plus, X } from "lucide-react";
+import { useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+
+import { getCompanies } from "../companies/api";
+import type { CompanyRow } from "../companies/types";
+import { type PickerCompany } from "./types";
 import { cn } from "../../lib/utils";
 import {
     useChecklist,
@@ -8,10 +14,15 @@ import {
 } from "./hooks";
 import type { ChecklistItem } from "./types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 
-type Props = {
+type Properties = {
     selectedDate: Date;
 };
+
+function normalizePrefix(s: string) {
+    return s.trim();
+}
 
 function toYmd(d: Date) {
     return format(d, "yyyy-MM-dd");
@@ -20,13 +31,25 @@ function toYmd(d: Date) {
 function groupItems(items: ChecklistItem[], selectedDateYmd: string) {
     const today: ChecklistItem[] = [];
     const overdue: ChecklistItem[] = [];
+    const added: ChecklistItem[] = [];
 
     for (const it of items) {
-        if (it.nextVisitOn < selectedDateYmd) overdue.push(it);
-        else if (it.nextVisitOn === selectedDateYmd) today.push(it);
+        // "Due" logic
+        const due = it.nextVisitOn != null && it.nextVisitOn <= selectedDateYmd;
+
+        if (due) {
+            if (it.nextVisitOn === selectedDateYmd) today.push(it);
+            else overdue.push(it);
+            continue;
+        }
+
+        // Not due, but manually added to this date
+        if (it.inChecklist) {
+            added.push(it);
+        }
     }
 
-    return { today, overdue };
+    return { today, overdue, added };
 }
 
 function ChecklistPill(props: {
@@ -83,7 +106,7 @@ function ChecklistPill(props: {
     );
 }
 
-export function TodayChecklist({ selectedDate }: Props) {
+export function TodayChecklist({ selectedDate }: Properties) {
     const dateYmd = toYmd(selectedDate);
 
     const { data, isLoading, isError } = useChecklist(dateYmd);
@@ -91,8 +114,51 @@ export function TodayChecklist({ selectedDate }: Props) {
 
     const submit = useSubmitChecklist(dateYmd);
 
-    const items = data ?? [];
-    const { today, overdue } = groupItems(items, dateYmd);
+    const items = useMemo(() => data ?? [], [data]);
+    const { today, overdue, added } = groupItems(items, dateYmd);
+
+    const [addingOpen, setAddingOpen] = useState(false);
+    const [search, setSearch] = useState("");
+
+    const existingIds = useMemo(
+        () => new Set(items.map((x) => x.companyId)),
+        [items]
+    );
+
+    const searchTerm = normalizePrefix(search);
+
+    const companySearch = useQuery({
+        queryKey: ["companies", "picker", searchTerm],
+        enabled: addingOpen && searchTerm.length > 0,
+        queryFn: async () => {
+            const response = await getCompanies({
+                q: searchTerm,
+                page: 0,
+                size: 10,
+            });
+
+            return response.items
+                .map(
+                    (x: CompanyRow): PickerCompany => ({
+                        companyId: x.companyId,
+                        companyName: x.companyName,
+                        careersUrl: x.careersUrl,
+                    })
+                )
+                .filter(
+                    (company) =>
+                        company.companyId &&
+                        company.companyName &&
+                        company.careersUrl
+                );
+        },
+    });
+
+    const pickerOptions = useMemo(() => {
+        const all = companySearch.data ?? [];
+
+        return all.filter((c) => !existingIds.has(c.companyId));
+    }, [companySearch.data, existingIds]);
 
     const completedCount = items.filter((x) => x.completed).length;
     const canSubmit = completedCount > 0 && !isLoading && !isError;
@@ -111,7 +177,99 @@ export function TodayChecklist({ selectedDate }: Props) {
                         </div>
                     ) : null}
                 </div>
+
+                <div className="flex items-center gap-2">
+                    <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                            setAddingOpen((v) => !v);
+                            setSearch("");
+                        }}
+                    >
+                        {addingOpen ? (
+                            <X className="h-4 w-4" />
+                        ) : (
+                            <Plus className="h-4 w-4" />
+                        )}
+                    </Button>
+                </div>
             </div>
+
+            {/* Add company picker (fixed space, dropdown overlays) */}
+            {addingOpen ? (
+                <div className="mt-3">
+                    <div className="relative">
+                        <Input
+                            value={search}
+                            onChange={(event) => setSearch(event.target.value)}
+                            placeholder="Add company to today's checklist..."
+                            className="h-8"
+                        />
+
+                        {/* Dropdown overlay */}
+                        {searchTerm.length > 0 ? (
+                            <div
+                                className={cn(
+                                    "absolute left-0 right-0 mt-2 z-50",
+                                    "rounded-md border bg-background shadow-md",
+                                    "max-h-40 overflow-y-auto" // keeps it from growing forever
+                                )}
+                            >
+                                {companySearch.isLoading ? (
+                                    <div className="text-xs text-muted-foreground px-3 py-2">
+                                        Searching...
+                                    </div>
+                                ) : pickerOptions.length === 0 ? (
+                                    <div className="text-xs text-muted-foreground px-3 py-2">
+                                        No companies found (or already in
+                                        today's list).
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col">
+                                        {pickerOptions.map(
+                                            (c: PickerCompany) => (
+                                                <button
+                                                    key={c.companyId}
+                                                    type="button"
+                                                    disabled={toggle.isPending}
+                                                    className={cn(
+                                                        "text-left px-3 py-2 hover:bg-muted text-sm",
+                                                        toggle.isPending &&
+                                                            "cursor-not-allowed opacity-50"
+                                                    )}
+                                                    onClick={async () => {
+                                                        await toggle.mutateAsync(
+                                                            {
+                                                                companyId:
+                                                                    c.companyId,
+                                                                completed:
+                                                                    false,
+                                                            }
+                                                        );
+
+                                                        setSearch("");
+                                                        setAddingOpen(false);
+                                                    }}
+                                                >
+                                                    <div className="font-medium">
+                                                        {c.companyName}
+                                                    </div>
+                                                </button>
+                                            )
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div className="mt-2 text-xs text-muted-foreground px-1">
+                                Type to search companies...
+                            </div>
+                        )}
+                    </div>
+                </div>
+            ) : null}
 
             {/* Scroll area wrapper takes remaining height */}
             <div className="mt-4 flex-1">
@@ -130,6 +288,34 @@ export function TodayChecklist({ selectedDate }: Props) {
 
                     {!isLoading && !isError ? (
                         <>
+                            <div>
+                                <div className="mb-2 text-sm font-semibold text-red-700">
+                                    Overdue
+                                </div>
+                                {overdue.length === 0 ? (
+                                    <div className="text-sm text-muted-foreground">
+                                        No overdue items.
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-col gap-2">
+                                        {overdue.map((it) => (
+                                            <ChecklistPill
+                                                key={it.companyId}
+                                                item={it}
+                                                tint="overdue"
+                                                toggling={toggle.isPending}
+                                                onToggle={(next) =>
+                                                    toggle.mutate({
+                                                        companyId: it.companyId,
+                                                        completed: next,
+                                                    })
+                                                }
+                                            />
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
                             <div>
                                 <div className="mb-2 text-sm font-semibold">
                                     Today
@@ -159,24 +345,25 @@ export function TodayChecklist({ selectedDate }: Props) {
                             </div>
 
                             <div>
-                                <div className="mb-2 text-sm font-semibold text-red-700">
-                                    Overdue
+                                <div className="mb-2 text-sm font-semibold">
+                                    Added
                                 </div>
-                                {overdue.length === 0 ? (
+                                {added.length === 0 ? (
                                     <div className="text-sm text-muted-foreground">
-                                        No overdue items.
+                                        No manually added items.
                                     </div>
                                 ) : (
                                     <div className="flex flex-col gap-2">
-                                        {overdue.map((it) => (
+                                        {added.map((item) => (
                                             <ChecklistPill
-                                                key={it.companyId}
-                                                item={it}
-                                                tint="overdue"
+                                                key={item.companyId}
+                                                item={item}
+                                                tint="today"
                                                 toggling={toggle.isPending}
                                                 onToggle={(next) =>
                                                     toggle.mutate({
-                                                        companyId: it.companyId,
+                                                        companyId:
+                                                            item.companyId,
                                                         completed: next,
                                                     })
                                                 }

@@ -251,19 +251,6 @@ public class CompanyService {
         }
     }
 
-    public CompanyDto markVisitedToday(UUID companyId) {
-        if (companyId == null) {
-            throw new IllegalArgumentException("companyID is required");
-        }
-
-        CompanyDto updated = companyRepository.markVisitedToday(companyId);
-        if (updated == null) {
-            throw new CompanyNotFoundException();
-        }
-
-        return updated;
-    }
-
     public void deleteCompany(UUID companyId) {
         if (companyId == null) {
             throw new IllegalArgumentException("companyId is required");

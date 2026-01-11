@@ -12,19 +12,6 @@ function Footer() {
     return <footer className="h-10 border-t bg-background" />;
 }
 
-/**
-function CompaniesTablePlaceHolder() {
-    return (
-        <section className="h-full w-full rounded-lg border bg-background p-4">
-            <h2 className="text-base font-semibold">Companies Table</h2>
-            <div className="mt-3 text-sm text-muted-foreground">
-                Placeholder for Companies Table
-            </div>
-        </section>
-    );
-}
-*/
-
 function McpSuggestionsPlaceholder() {
     return (
         <section className="h-full w-full rounded-lg border bg-background p-4">

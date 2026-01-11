@@ -17,5 +17,6 @@ public record ChecklistCompanyDto(
         LocalDate nextVisitOn,
         OffsetDateTime createdAt,
         OffsetDateTime updatedAt,
-        boolean completed
+        boolean completed,
+        boolean inChecklist
 ) {}

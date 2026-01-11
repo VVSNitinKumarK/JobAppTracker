@@ -9,9 +9,16 @@ export type ChecklistItem = {
     createdAt: string;
     updatedAt: string;
     completed: boolean;
+    inChecklist: boolean;
 };
 
 export type TagDto = {
     tagKey: string;
     tagName: string;
+};
+
+export type PickerCompany = {
+    companyId: string;
+    companyName: string;
+    careersUrl: string;
 };

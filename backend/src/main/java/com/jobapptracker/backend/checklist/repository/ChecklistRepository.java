@@ -49,7 +49,8 @@ public class ChecklistRepository {
                     company.next_visit_on,
                     company.created_at,
                     company.updated_at,
-                    COALESCE(checklist.completed, FALSE) AS completed
+                    COALESCE(checklist.completed, FALSE) AS completed,
+                    (checklist.company_id IS NOT NULL) AS in_checklist
                 FROM jobapps.company_tracking company
                 LEFT JOIN jobapps.daily_checklist checklist
                     ON checklist.company_id = company.company_id
@@ -58,8 +59,13 @@ public class ChecklistRepository {
                     ON ct.company_id = company.company_id
                 LEFT JOIN jobapps.tag t
                     ON t.tag_id = ct.tag_id
-                WHERE company.next_visit_on IS NOT NULL
-                AND company.next_visit_on <= ?
+                WHERE (
+                    company.next_visit_on IS NOT NULL
+                    AND company.next_visit_on <= ?
+                ) OR (
+                    checklist.company_id IS NOT NULL
+                    AND checklist.completed = FALSE
+                )
                 GROUP BY
                     company.company_id,
                     company.company_name,
@@ -69,7 +75,8 @@ public class ChecklistRepository {
                     company.next_visit_on,
                     company.created_at,
                     company.updated_at,
-                    checklist.completed
+                    checklist.completed,
+                    checklist.company_id
                 ORDER BY company.company_name ASC
                 """;
 
@@ -187,7 +194,8 @@ public class ChecklistRepository {
                     resultSet.getObject("next_visit_on", LocalDate.class),
                     resultSet.getObject("created_at", OffsetDateTime.class),
                     resultSet.getObject("updated_at", OffsetDateTime.class),
-                    resultSet.getBoolean("completed")
+                    resultSet.getBoolean("completed"),
+                    resultSet.getBoolean("in_checklist")
             );
         }
 
