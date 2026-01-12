@@ -3,7 +3,7 @@ import {
     getCompanies,
     createCompany,
     updateCompany,
-    deleteComnpany,
+    deleteCompany,
     getTags,
     type CreateCompanyRequest,
     type UpdateCompanyRequest,
@@ -22,8 +22,7 @@ export type CompanyFilters = {
 
 export const companyKeys = {
     all: ["companies"] as const,
-    list: (filters: CompanyFilters) =>
-        ["companies", "list", filters] as const,
+    list: (filters: CompanyFilters) => ["companies", "list", filters] as const,
 };
 
 export function useCompanies(params: CompanyFilters) {
@@ -64,7 +63,7 @@ export function useDeleteCompanies() {
 
     return useMutation({
         mutationFn: async (companyIds: string[]) => {
-            await Promise.all(companyIds.map((id) => deleteComnpany(id)));
+            await Promise.all(companyIds.map((id) => deleteCompany(id)));
         },
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: companyKeys.all });

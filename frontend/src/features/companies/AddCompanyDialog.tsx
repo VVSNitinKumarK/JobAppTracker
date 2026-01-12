@@ -2,8 +2,8 @@ import { useEffect, useMemo } from "react";
 import { z } from "zod";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, isValid, parse } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+
+import { parseMMddyyyyToYmd } from "@/lib/dateUtils";
 
 import {
     Dialog,
@@ -13,22 +13,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { FormField } from "@/components/form/FormField";
+import { DatePickerField } from "@/components/form/DatePickerField";
 
-import { useCreateCompany, useGetTags } from "./hooks";
-import { TagMultiSelect, type TagOption } from "./TagMultiSelect";
+import { useCreateCompany } from "./hooks";
+import { TagMultiSelect } from "./TagMultiSelect";
+import { useTagOptions } from "./useTagOptions";
 
 const schema = z.object({
     companyName: z.string().min(1, "Company Name is required").max(120),
     careersUrl: z.string().url("Enter a valid URL"),
     lastVisitedOn: z.string().optional(),
-    revisitAfterDays: z.number().int().min(1, "Min 1").max(10, "Max 20"),
+    revisitAfterDays: z.number().int().min(1, "Min 1").max(20, "Max 20"),
     tags: z
         .array(
             z.object({
@@ -42,25 +38,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-function parseMmddyyyyyoYmd(input: string): string | null {
-    const trimmed = input.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const date = parse(trimmed, "MM/dd/yyyy", new Date());
-    if (!isValid(date)) {
-        return null;
-    }
-
-    return format(date, "yyyy-MM-dd");
-}
-
-function YmdtoMmddyyyy(ymd: string) {
-    const date = new Date(`${ymd}T00:00:00`);
-    return isValid(date) ? format(date, "MM/dd/yyyy") : "";
-}
-
 type Properties = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -73,38 +50,7 @@ export function AddCompanyDialog({
     initialName,
 }: Properties) {
     const create = useCreateCompany();
-
-    const tagsQuery = useGetTags();
-
-    const tagOptions: TagOption[] = useMemo(() => {
-        const raw = tagsQuery.data ?? [];
-        return raw
-            .map((tag) => ({
-                key: String(
-                    (tag as { tagKey?: string; key?: string }).tagKey ??
-                        (tag as { key?: string }).key ??
-                        ""
-                ).trim(),
-                label: String(
-                    (
-                        tag as {
-                            tagName?: string;
-                            name?: string;
-                            tagKey?: string;
-                            key?: string;
-                        }
-                    ).tagName ??
-                        (tag as { name?: string }).name ??
-                        (tag as { tagKey?: string }).tagKey ??
-                        (tag as { key?: string }).key ??
-                        ""
-                ).trim(),
-            }))
-            .filter(
-                (tag): tag is TagOption =>
-                    tag.key.length > 0 && tag.label.length > 0
-            );
-    }, [tagsQuery.data]);
+    const tagOptions = useTagOptions();
 
     const defaultValues: FormValues = useMemo(
         () => ({
@@ -142,7 +88,7 @@ export function AddCompanyDialog({
     const lastVisitedText = useWatch({ control, name: "lastVisitedOn" });
 
     const onSubmit = handleSubmit(async (values) => {
-        const lastVisistedYmd = parseMmddyyyyyoYmd(values.lastVisitedOn ?? "");
+        const lastVisistedYmd = parseMMddyyyyToYmd(values.lastVisitedOn ?? "");
 
         if ((values.lastVisitedOn ?? "").trim() && !lastVisistedYmd) {
             form.setError("lastVisitedOn", {
@@ -176,113 +122,40 @@ export function AddCompanyDialog({
                 </DialogHeader>
 
                 <form onSubmit={onSubmit} className="space-y-4">
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Company Name
-                        </label>
+                    <FormField
+                        label="Company Name"
+                        error={errors.companyName?.message}
+                    >
                         <Input
                             placeholder="Netflix"
                             {...register("companyName")}
                         />
-                        {errors.companyName ? (
-                            <div className="text-xs text-red-600">
-                                {errors.companyName.message}
-                            </div>
-                        ) : null}
-                    </div>
+                    </FormField>
 
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Careers URL
-                        </label>
+                    <FormField
+                        label="Careers URL"
+                        error={errors.careersUrl?.message}
+                    >
                         <Input
                             placeholder="https://jobs.netlflix.com"
                             {...register("careersUrl")}
                         />
-                        {errors.careersUrl ? (
-                            <div className="text-xs text-red-600">
-                                {errors.careersUrl.message}
-                            </div>
-                        ) : null}
-                    </div>
+                    </FormField>
 
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Last Visited On (optional)
-                        </label>
+                    <DatePickerField
+                        label="Last Visited On (optional)"
+                        register={register("lastVisitedOn")}
+                        setValue={setValue}
+                        value={lastVisitedText}
+                        error={errors.lastVisitedOn?.message}
+                        helperText="Type MM/DD/YYYY or use the calendar."
+                    />
 
-                        <div className="relative">
-                            <Input
-                                placeholder="MM/DD/YYYY"
-                                {...register("lastVisitedOn")}
-                                className="pr-10"
-                            />
-
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Pick date"
-                                        className={cn(
-                                            "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground",
-                                            "hover:bg-muted hover:text-foreground",
-                                            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                        )}
-                                    >
-                                        <CalendarIcon className="h-4 w-4" />
-                                    </button>
-                                </PopoverTrigger>
-
-                                <PopoverContent align="end" className="p-2">
-                                    <Calendar
-                                        mode="single"
-                                        selected={
-                                            parseMmddyyyyyoYmd(
-                                                lastVisitedText ?? ""
-                                            )
-                                                ? new Date(
-                                                      `${parseMmddyyyyyoYmd(
-                                                          lastVisitedText ?? ""
-                                                      )}T00:00:00`
-                                                  )
-                                                : undefined
-                                        }
-                                        onSelect={(date) => {
-                                            if (!date) {
-                                                return;
-                                            }
-
-                                            const ymd = format(
-                                                date,
-                                                "yyyy-MM-dd"
-                                            );
-                                            setValue(
-                                                "lastVisitedOn",
-                                                YmdtoMmddyyyy(ymd),
-                                                { shouldValidate: true }
-                                            );
-                                        }}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
-                        {errors.lastVisitedOn ? (
-                            <div className="text-xs text-red-600">
-                                {errors.lastVisitedOn.message}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-muted-foreground">
-                                Type MM/DD/YYYY or use the calendar.
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            {" "}
-                            Revisit After (days)
-                        </label>
+                    <FormField
+                        label="Revisit After (days)"
+                        error={errors.revisitAfterDays?.message}
+                        helperText="Allowed: 1 to 20"
+                    >
                         <Input
                             type="number"
                             min={1}
@@ -291,16 +164,7 @@ export function AddCompanyDialog({
                                 valueAsNumber: true,
                             })}
                         />
-                        {errors.revisitAfterDays ? (
-                            <div className="text-xs text-red-600">
-                                {errors.revisitAfterDays.message}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-muted-foreground">
-                                Allowed: 1 to 20
-                            </div>
-                        )}
-                    </div>
+                    </FormField>
 
                     <TagMultiSelect
                         label="Tags"

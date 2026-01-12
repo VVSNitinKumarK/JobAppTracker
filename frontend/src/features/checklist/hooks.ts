@@ -46,7 +46,7 @@ export function useToggleChecklistItem(date: string) {
                         (x) => x.companyId === vars.companyId
                     );
 
-                    if (idx > 0) {
+                    if (idx >= 0) {
                         return old.map((item) =>
                             item.companyId === vars.companyId
                                 ? { ...item, completed: vars.completed }

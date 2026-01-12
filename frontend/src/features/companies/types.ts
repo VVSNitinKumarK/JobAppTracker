@@ -1,3 +1,5 @@
+import type { TagDto } from "@/types/api";
+
 export type CompanyRow = {
     companyId: string;
     companyName: string;
@@ -8,9 +10,4 @@ export type CompanyRow = {
     tags?: TagDto[];
     createdAt: string;
     updatedAt: string;
-};
-
-export type TagDto = {
-    tagKey: string;
-    tagName: string;
 };

@@ -1,12 +1,17 @@
 package com.jobapptracker.backend.company.service;
 
+import com.jobapptracker.backend.company.CompanyConstants;
 import com.jobapptracker.backend.company.dto.CompanyCreateRequest;
 import com.jobapptracker.backend.company.dto.CompanyDto;
 import com.jobapptracker.backend.company.dto.CompanyUpdateRequest;
+import com.jobapptracker.backend.company.dto.PagedCompaniesResponse;
 import com.jobapptracker.backend.company.repository.CompanyRepository;
 import com.jobapptracker.backend.company.repository.CompanyTagUtil;
 import com.jobapptracker.backend.company.web.DueFilter;
+import com.jobapptracker.backend.config.PaginationConstants;
 import com.jobapptracker.backend.tag.dto.TagDto;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
@@ -22,13 +27,15 @@ import java.util.stream.Stream;
 @Service
 public class CompanyService {
 
+    private static final Logger log = LoggerFactory.getLogger(CompanyService.class);
+
     private final CompanyRepository companyRepository;
 
     public CompanyService(CompanyRepository repository) {
         this.companyRepository = repository;
     }
 
-    public List<CompanyDto> listCompanies(
+    public PagedCompaniesResponse listCompanies(
             Integer page,
             Integer size,
             String q,
@@ -37,18 +44,22 @@ public class CompanyService {
             String dateRaw,
             String lastVisitedOnRaw
     ) {
-        int p = (page == null) ? 0 : page;
-        int s = (size == null) ? 10 : size;
+        int p = (page == null) ? PaginationConstants.DEFAULT_PAGE : page;
+        int s = (size == null) ? PaginationConstants.DEFAULT_PAGE_SIZE : size;
 
         if (p < 0) {
-            throw new IllegalStateException("page must be >= 0");
+            throw new IllegalStateException("page must be >= 0, but got: " + p);
+        }
+        // Prevent integer overflow when calculating offset = page * size
+        if (p > PaginationConstants.MAX_PAGE_NUMBER) {
+            throw new IllegalStateException("page must be <= " + PaginationConstants.MAX_PAGE_NUMBER + " (too many records), but got: " + p);
         }
         if (s <= 0) {
-            throw new IllegalStateException("size must be > 0");
+            throw new IllegalStateException("size must be > 0, but got: " + s);
         }
 
-        if (s > 200) {
-            s = 200;
+        if (s > PaginationConstants.MAX_PAGE_SIZE) {
+            s = PaginationConstants.MAX_PAGE_SIZE;
         }
 
         List<String> tags = parseTags(tagsCsv);
@@ -56,7 +67,10 @@ public class CompanyService {
         LocalDate date = parseDateOrNull(dateRaw);
         LocalDate lastVisitedOn = parseDateOrNull(lastVisitedOnRaw);
 
-        return companyRepository.findCompanies(p, s, q, tags, due, date, lastVisitedOn);
+        List<CompanyDto> items = companyRepository.findCompanies(p, s, q, tags, due, date, lastVisitedOn);
+        long total = companyRepository.countCompanies(q, tags, due, date, lastVisitedOn);
+
+        return new PagedCompaniesResponse(items, p, s, total);
     }
 
     private static List<String> parseTags(String tagsCsv) {
@@ -118,31 +132,10 @@ public class CompanyService {
             return tags.stream()
                     .filter(Objects::nonNull)
                     .map(t -> {
-                        // If TagDto is a record, these accessors will exist if you defined them.
-                        // If TagDto is a normal class with getters, replace with getTagName/getTagKey.
-                        String name = null;
-                        String key = null;
+                        String name = t.tagName();
+                        String key = t.tagKey();
 
-                        try {
-                            // record-style accessors
-                            name = t.tagName();
-                            key = t.tagKey();
-                        } catch (Throwable ignored) {
-                            // fallback to alternate field names if you modeled TagDto differently
-                        }
-
-                        // if your TagDto also has name/key variants, keep these as fallback
-                        if (name == null) {
-                            try {
-                                name = t.tagName();
-                            } catch (Throwable ignored) {}
-                        }
-                        if (key == null) {
-                            try {
-                                key = t.tagKey();
-                            } catch (Throwable ignored) {}
-                        }
-
+                        // Prefer tagName (display name), fallback to tagKey if name is blank
                         String candidate = (name != null && !name.isBlank()) ? name : key;
                         return (candidate == null) ? "" : candidate.trim();
                     })
@@ -156,31 +149,20 @@ public class CompanyService {
 
     @Transactional
     public CompanyDto createCompany(CompanyCreateRequest request) {
-        if (request == null) {
-            throw new IllegalStateException("Request body is required");
-        }
+        // Validation is handled by @Valid annotation in controller + JSR-303 annotations on DTO
+        String name = request.companyName().trim();
+        String url = request.careersUrl().trim();
+        int revisit = (request.revisitAfterDays() == null) ? CompanyConstants.DEFAULT_REVISIT_AFTER_DAYS : request.revisitAfterDays();
 
-        String name = (request.companyName() == null) ? null : request.companyName().trim();
-        String url = (request.careersUrl() == null) ? null : request.careersUrl().trim();
+        log.info("Creating company: name={}, url={}, revisitAfterDays={}",
+                name, url, revisit);
 
-        if (name == null || name.isBlank()) {
-            throw new IllegalArgumentException("companyName is required");
-        }
-
-        if (url == null || url.isBlank()) {
-            throw new IllegalArgumentException("careersUrl is required");
-        }
-
-        int revisit = (request.revisitAfterDays() == null) ? 7 : request.revisitAfterDays();
-        if (revisit <= 0) {
-            throw new IllegalArgumentException("revisitAfterDays must be > 0");
-        }
-
-        // ✅ FIX: normalize whatever request.tags() is into List<String>
         List<String> tagNames = normalizeTagDisplayNames(request.tags());
 
         try {
-            return companyRepository.insertCompany(name, url, request.lastVisitedOn(), revisit, tagNames);
+            CompanyDto created = companyRepository.insertCompany(name, url, request.lastVisitedOn(), revisit, tagNames);
+            log.info("Company created successfully: id={}, name={}", created.companyId(), created.companyName());
+            return created;
         } catch (DuplicateKeyException e) {
             throw new DuplicateCareersUrlException(url);
         }
@@ -188,31 +170,22 @@ public class CompanyService {
 
     @Transactional
     public CompanyDto updateCompany(UUID companyId, CompanyUpdateRequest request) {
-        if (companyId == null) {
-            throw new BadUpdateRequestException("companyId is required");
-        }
+        // @Valid annotation handles: null request, revisitAfterDays > 0
+        // Manual validation still needed for: blank strings (if provided), at least one field
 
-        if (request == null) {
-            throw new BadUpdateRequestException("Request body is required");
-        }
+        log.info("Updating company: id={}", companyId);
 
         String companyName = (request.companyName() == null) ? null : request.companyName().trim();
         String careersUrl = (request.careersUrl() == null) ? null : request.careersUrl().trim();
 
         if (request.companyName() != null && companyName.isBlank()) {
-            throw new BadUpdateRequestException("companyName must not be blank");
+            throw new BadUpdateRequestException("companyName must not be blank", companyId, "companyName");
         }
 
         if (request.careersUrl() != null && careersUrl.isBlank()) {
-            throw new BadUpdateRequestException("CareersUrl must not be blank");
+            throw new BadUpdateRequestException("careersUrl must not be blank", companyId, "careersUrl");
         }
 
-        Integer revisit = request.revisitAfterDays();
-        if (revisit != null && revisit <= 0) {
-            throw new BadUpdateRequestException("revisitAfterDays must be > 0");
-        }
-
-        // ✅ FIX: normalize tags if they are present in request
         List<String> tagNames = null;
         if (request.tags() != null) {
             tagNames = normalizeTagDisplayNames(request.tags());
@@ -226,8 +199,10 @@ public class CompanyService {
                         request.tags() != null;
 
         if (!anyFieldProvided) {
-            throw new BadUpdateRequestException("No fields provided to update");
+            throw new BadUpdateRequestException("No fields provided to update", companyId, null);
         }
+
+        Integer revisit = request.revisitAfterDays();
 
         try {
             CompanyDto updated = companyRepository.updateCompany(
@@ -240,14 +215,15 @@ public class CompanyService {
             );
 
             if (updated == null) {
-                throw new CompanyNotFoundException();
+                throw new CompanyNotFoundException(companyId);
             }
 
+            log.info("Company updated successfully: id={}, name={}", updated.companyId(), updated.companyName());
             return updated;
         } catch (DuplicateKeyException e) {
             throw new DuplicateCareersUrlException(careersUrl);
         } catch (DataIntegrityViolationException e) {
-            throw new BadUpdateRequestException("Invalid update (constraint violation)");
+            throw new BadUpdateRequestException("Invalid update (constraint violation): " + e.getMessage(), companyId, null);
         }
     }
 
@@ -256,9 +232,23 @@ public class CompanyService {
             throw new IllegalArgumentException("companyId is required");
         }
 
+        log.info("Deleting company: id={}", companyId);
         int deleted = companyRepository.deleteCompany(companyId);
         if (deleted == 0) {
-            throw new CompanyNotFoundException();
+            throw new CompanyNotFoundException(companyId);
         }
+        log.info("Company deleted successfully: id={}", companyId);
+    }
+
+    @Transactional
+    public int deleteCompanies(List<UUID> companyIds) {
+        if (companyIds == null || companyIds.isEmpty()) {
+            throw new IllegalArgumentException("companyIds list cannot be null or empty");
+        }
+
+        log.info("Batch deleting {} companies", companyIds.size());
+        int deleted = companyRepository.deleteCompanies(companyIds);
+        log.info("Batch delete completed: {} out of {} companies deleted", deleted, companyIds.size());
+        return deleted;
     }
 }

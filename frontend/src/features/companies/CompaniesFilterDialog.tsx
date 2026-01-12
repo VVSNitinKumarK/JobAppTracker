@@ -2,8 +2,8 @@ import { useEffect, useMemo } from "react";
 import { z } from "zod";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, isValid, parse } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+
+import { parseMMddyyyyToYmd, ymdToMmddyyyy } from "@/lib/dateUtils";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,16 +12,10 @@ import {
     DialogHeader,
     DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
+import { DatePickerField } from "@/components/form/DatePickerField";
 import { cn } from "@/lib/utils";
 
-import { useGetTags } from "./hooks";
+import { useTagOptions } from "./useTagOptions";
 
 const schema = z.object({
     lastVisitedOn: z.string().optional(),
@@ -36,25 +30,6 @@ export type CompanyFilters = {
 };
 
 type FormValues = z.infer<typeof schema>;
-
-function parseMMddyyyyToYmd(input?: string): string | null {
-    const trimmed = (input ?? "").trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const date = parse(trimmed, "MM/dd/yyyy", new Date());
-    if (!isValid(date)) {
-        return null;
-    }
-
-    return format(date, "yyyy-MM-dd");
-}
-
-function ymdTOMmddyyyy(ymd: string) {
-    const date = new Date(`${ymd}T00:00:00`);
-    return isValid(date) ? format(date, "MM/dd/yyyy") : "";
-}
 
 type Properties = {
     open: boolean;
@@ -71,25 +46,15 @@ export function CompaniesFilterDialog({
     onApply,
     onClear,
 }: Properties) {
-    const tagsQuery = useGetTags();
-
-    const tagOptions = useMemo(() => {
-        const raw = tagsQuery.data ?? [];
-        return raw
-            .map((t) => ({
-                key: String(t.tagKey ?? "").trim(),
-                label: String(t.tagName ?? "").trim(),
-            }))
-            .filter((t) => t.key.length > 0 && t.label.length > 0);
-    }, [tagsQuery.data]);
+    const tagOptions = useTagOptions();
 
     const defaultValues: FormValues = useMemo(
         () => ({
             lastVisitedOn: value.lastVisitedOnYmd
-                ? ymdTOMmddyyyy(value.lastVisitedOnYmd)
+                ? ymdToMmddyyyy(value.lastVisitedOnYmd)
                 : "",
             nextVisitOn: value.nextVisitOnYmd
-                ? ymdTOMmddyyyy(value.nextVisitOnYmd)
+                ? ymdToMmddyyyy(value.nextVisitOnYmd)
                 : "",
             tags: value.tagsAny ?? [],
         }),
@@ -110,12 +75,13 @@ export function CompaniesFilterDialog({
         handleSubmit,
         setValue,
         formState,
-        getValues,
         control,
     } = form;
 
     // reactive selection list
     const selectedTags = useWatch({ control, name: "tags" }) ?? [];
+    const lastVisitedText = useWatch({ control, name: "lastVisitedOn" });
+    const nextVisitText = useWatch({ control, name: "nextVisitOn" });
 
     useEffect(() => {
         if (open) {
@@ -150,9 +116,6 @@ export function CompaniesFilterDialog({
         onOpenChange(false);
     });
 
-    const lastYmdSelected = parseMMddyyyyToYmd(getValues("lastVisitedOn"));
-    const nextYmdSelected = parseMMddyyyyToYmd(getValues("nextVisitOn"));
-
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[520px]">
@@ -161,124 +124,23 @@ export function CompaniesFilterDialog({
                 </DialogHeader>
 
                 <form onSubmit={submit} className="space-y-4">
-                    {/* Last Visited */}
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Last Visited
-                        </label>
-                        <div className="relative">
-                            <Input
-                                placeholder="MM/DD/YYYY"
-                                {...register("lastVisitedOn")}
-                                className="pr-10"
-                            />
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Pick last visited date"
-                                        className={cn(
-                                            "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground",
-                                            "hover:bg-muted hover:text-foreground",
-                                            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                        )}
-                                    >
-                                        <CalendarIcon className="h-4 w-4" />
-                                    </button>
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="p-2">
-                                    <Calendar
-                                        mode="single"
-                                        selected={
-                                            lastYmdSelected
-                                                ? new Date(
-                                                      `${lastYmdSelected}T00:00:00`
-                                                  )
-                                                : undefined
-                                        }
-                                        onSelect={(date) => {
-                                            if (!date) return;
-                                            const ymd = format(
-                                                date,
-                                                "yyyy-MM-dd"
-                                            );
-                                            setValue(
-                                                "lastVisitedOn",
-                                                ymdTOMmddyyyy(ymd),
-                                                { shouldValidate: true }
-                                            );
-                                        }}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        {formState.errors.lastVisitedOn ? (
-                            <div className="text-xs text-red-600">
-                                {
-                                    formState.errors.lastVisitedOn
-                                        .message as string
-                                }
-                            </div>
-                        ) : null}
-                    </div>
+                    <DatePickerField
+                        label="Last Visited"
+                        register={register("lastVisitedOn")}
+                        setValue={setValue}
+                        value={lastVisitedText}
+                        error={formState.errors.lastVisitedOn?.message as string}
+                        ariaLabel="Pick last visited date"
+                    />
 
-                    {/* Next Visit */}
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Next Visit
-                        </label>
-                        <div className="relative">
-                            <Input
-                                placeholder="MM/DD/YYYY"
-                                {...register("nextVisitOn")}
-                                className="pr-10"
-                            />
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Pick next visit date"
-                                        className={cn(
-                                            "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground",
-                                            "hover:bg-muted hover:text-foreground",
-                                            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                        )}
-                                    >
-                                        <CalendarIcon className="h-4 w-4" />
-                                    </button>
-                                </PopoverTrigger>
-                                <PopoverContent align="end" className="p-2">
-                                    <Calendar
-                                        mode="single"
-                                        selected={
-                                            nextYmdSelected
-                                                ? new Date(
-                                                      `${nextYmdSelected}T00:00:00`
-                                                  )
-                                                : undefined
-                                        }
-                                        onSelect={(date) => {
-                                            if (!date) return;
-                                            const ymd = format(
-                                                date,
-                                                "yyyy-MM-dd"
-                                            );
-                                            setValue(
-                                                "nextVisitOn",
-                                                ymdTOMmddyyyy(ymd),
-                                                { shouldValidate: true }
-                                            );
-                                        }}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-                        {formState.errors.nextVisitOn ? (
-                            <div className="text-xs text-red-600">
-                                {formState.errors.nextVisitOn.message as string}
-                            </div>
-                        ) : null}
-                    </div>
+                    <DatePickerField
+                        label="Next Visit"
+                        register={register("nextVisitOn")}
+                        setValue={setValue}
+                        value={nextVisitText}
+                        error={formState.errors.nextVisitOn?.message as string}
+                        ariaLabel="Pick next visit date"
+                    />
 
                     {/* Tags */}
                     <div className="space-y-1.5">

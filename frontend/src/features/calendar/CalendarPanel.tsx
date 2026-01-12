@@ -1,6 +1,7 @@
-import { format, isBefore, startOfMonth, subMonths } from "date-fns";
+import { isBefore, startOfMonth, subMonths, format } from "date-fns";
 import { Calendar } from "../../components/ui/calendar";
 import { cn } from "../../lib/utils";
+import { dateToYmd } from "@/lib/dateUtils";
 import { useChecklist } from "../checklist/hooks";
 import { useMaxNextVisitOn } from "./hooks";
 
@@ -9,16 +10,12 @@ type Properties = {
     onSelectDate: (date: Date) => void;
 };
 
-function toYmd(date: Date) {
-    return format(date, "yyyy-MM-dd");
-}
-
 function startOfMonthSafe(date: Date) {
     return startOfMonth(date);
 }
 
 export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
-    const selectedYmd = toYmd(selectedDate);
+    const selectedYmd = dateToYmd(selectedDate);
 
     const maxMeta = useMaxNextVisitOn();
     const maxNextVisitOn = maxMeta.data?.maxNextVisitOn ?? null;

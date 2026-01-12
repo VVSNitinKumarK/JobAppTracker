@@ -12,6 +12,7 @@ type Properties = {
     companyNames: string[];
     isDeleting: boolean;
     onConfirm: () => void;
+    errorMessage?: string | null;
 };
 
 export function DeleteCompaniesDialog({
@@ -20,6 +21,7 @@ export function DeleteCompaniesDialog({
     companyNames,
     isDeleting,
     onConfirm,
+    errorMessage,
 }: Properties) {
     return (
         <Dialog
@@ -32,6 +34,12 @@ export function DeleteCompaniesDialog({
                 </DialogHeader>
 
                 <div className="space-y-3">
+                    {errorMessage && (
+                        <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                            {errorMessage}
+                        </div>
+                    )}
+
                     <div className="text-sm text-muted-foreground">
                         This will permanently remove the selected companies.
                         Checklist will be removed automatically.

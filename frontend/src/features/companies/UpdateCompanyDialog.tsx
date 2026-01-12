@@ -1,9 +1,9 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { format, isValid, parse } from "date-fns";
-import { Calendar as CalendarIcon } from "lucide-react";
+
+import { parseMMddyyyyToYmd, ymdToMmddyyyy } from "@/lib/dateUtils";
 
 import {
     Dialog,
@@ -13,17 +13,13 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Calendar } from "@/components/ui/calendar";
-import {
-    Popover,
-    PopoverContent,
-    PopoverTrigger,
-} from "@/components/ui/popover";
-import { cn } from "@/lib/utils";
+import { FormField } from "@/components/form/FormField";
+import { DatePickerField } from "@/components/form/DatePickerField";
 
 import type { CompanyRow } from "./types";
-import { useGetTags, useUpdateCompany } from "./hooks";
+import { useUpdateCompany } from "./hooks";
 import { TagMultiSelect, type TagOption } from "./TagMultiSelect";
+import { useTagOptions } from "./useTagOptions";
 
 const schema = z.object({
     companyName: z.string().min(1, "Company Name is required").max(120),
@@ -40,25 +36,6 @@ const schema = z.object({
 
 type FormValues = z.infer<typeof schema>;
 
-function parseMMddyyyyToYmd(input: string): string | null {
-    const trimmed = input.trim();
-    if (!trimmed) {
-        return null;
-    }
-
-    const date = parse(trimmed, "MM/dd/yyyy", new Date());
-    if (!isValid(date)) {
-        return null;
-    }
-
-    return format(date, "yyyy-MM-dd");
-}
-
-function ymdToMmddyyyy(ymd: string) {
-    const date = new Date(`${ymd}T00:00:00`);
-    return isValid(date) ? format(date, "MM/dd/yyyy") : "";
-}
-
 type Properties = {
     open: boolean;
     onOpenChange: (open: boolean) => void;
@@ -71,37 +48,8 @@ export function UpdateCompanyDialog({
     company,
 }: Properties) {
     const update = useUpdateCompany();
-
-    const tagsQuery = useGetTags();
-
-    const tagOptions: TagOption[] = useMemo(() => {
-        const raw = tagsQuery.data ?? [];
-        return raw
-            .map((tag) => ({
-                key: String(
-                    (tag as { tagKey?: string; key?: string }).tagKey ??
-                        (tag as { key?: string }).key ??
-                        ""
-                ).trim(),
-                label: String(
-                    (
-                        tag as {
-                            tagName?: string;
-                            name?: string;
-                            tagKey?: string;
-                            key?: string;
-                        }
-                    ).tagName ??
-                        (tag as { name?: string }).name ??
-                        (tag as { tagKey?: string }).tagKey ??
-                        (tag as { key?: string }).key ??
-                        ""
-                ).trim(),
-            }))
-            .filter(
-                (t): t is TagOption => t.key.length > 0 && t.label.length > 0
-            );
-    }, [tagsQuery.data]);
+    const tagOptions = useTagOptions();
+    const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
     const defaultValues: FormValues = useMemo(() => {
         const companyTagKeys = (company?.tags ?? []).map((t) => t.tagKey);
@@ -163,18 +111,27 @@ export function UpdateCompanyDialog({
             return;
         }
 
-        await update.mutateAsync({
-            companyId: company.companyId,
-            payload: {
-                companyName: values.companyName.trim(),
-                careersUrl: values.careersUrl.trim(),
-                lastVisitedOn: lastVisitedYmd ?? undefined,
-                revisitAfterDays: values.revisitAfterDays,
-                tags: (values.tags ?? []).map((tag) => tag.key),
-            },
-        });
+        try {
+            setErrorMessage(null);
+            await update.mutateAsync({
+                companyId: company.companyId,
+                payload: {
+                    companyName: values.companyName.trim(),
+                    careersUrl: values.careersUrl.trim(),
+                    lastVisitedOn: lastVisitedYmd ?? undefined,
+                    revisitAfterDays: values.revisitAfterDays,
+                    tags: (values.tags ?? []).map((tag) => tag.key),
+                },
+            });
 
-        onOpenChange(false);
+            onOpenChange(false);
+        } catch (error) {
+            setErrorMessage(
+                error instanceof Error
+                    ? error.message
+                    : "Failed to update company"
+            );
+        }
     });
 
     const selectedTags = useWatch({ control, name: "tags" }) ?? [];
@@ -184,120 +141,52 @@ export function UpdateCompanyDialog({
             open={open}
             onOpenChange={(v) => !update.isPending && onOpenChange(v)}
         >
-            <DialogContent className="sm:maxw-[520px]">
+            <DialogContent className="sm:max-w-[520px]">
                 <DialogHeader>
                     <DialogTitle>Update Company</DialogTitle>
                 </DialogHeader>
 
                 <form onSubmit={onSubmit} className="space-y-4">
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Company Name
-                        </label>
+                    {errorMessage && (
+                        <div className="rounded-md bg-red-50 border border-red-200 p-3 text-sm text-red-800">
+                            {errorMessage}
+                        </div>
+                    )}
+
+                    <FormField
+                        label="Company Name"
+                        error={errors.companyName?.message}
+                    >
                         <Input
                             placeholder="Netflix"
                             {...register("companyName")}
                         />
-                        {errors.companyName ? (
-                            <div className="text-xs text-red-600">
-                                {errors.companyName.message}
-                            </div>
-                        ) : null}
-                    </div>
+                    </FormField>
 
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Careers URL
-                        </label>
+                    <FormField
+                        label="Careers URL"
+                        error={errors.careersUrl?.message}
+                    >
                         <Input
                             placeholder="https://jobs.netflix.com"
                             {...register("careersUrl")}
                         />
-                        {errors.careersUrl ? (
-                            <div className="text-xs text-red-600">
-                                {errors.careersUrl.message}
-                            </div>
-                        ) : null}
-                    </div>
+                    </FormField>
 
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Last Visited On (optional)
-                        </label>
+                    <DatePickerField
+                        label="Last Visited On (optional)"
+                        register={register("lastVisitedOn")}
+                        setValue={setValue}
+                        value={lastVisitedText}
+                        error={errors.lastVisitedOn?.message}
+                        helperText="Type MM/DD/YYYY or use the calendar"
+                    />
 
-                        <div className="relative">
-                            <Input
-                                placeholder="MM/DD/YYYY"
-                                {...register("lastVisitedOn")}
-                                className="pr-10"
-                            />
-
-                            <Popover>
-                                <PopoverTrigger asChild>
-                                    <button
-                                        type="button"
-                                        aria-label="Pick date"
-                                        className={cn(
-                                            "absolute right-2 top-1/2 -translate-y-1/2 rounded-md p-1 text-muted-foreground",
-                                            "hover:bg-muted hover:text-foreground",
-                                            "focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-                                        )}
-                                    >
-                                        <CalendarIcon className="h-4 w-4" />
-                                    </button>
-                                </PopoverTrigger>
-
-                                <PopoverContent align="end" className="p-2">
-                                    <Calendar
-                                        mode="single"
-                                        selected={
-                                            parseMMddyyyyToYmd(
-                                                lastVisitedText ?? ""
-                                            )
-                                                ? new Date(
-                                                      `${parseMMddyyyyToYmd(
-                                                          lastVisitedText ?? ""
-                                                      )}T00:00:00`
-                                                  )
-                                                : undefined
-                                        }
-                                        onSelect={(date) => {
-                                            if (!date) {
-                                                return;
-                                            }
-
-                                            const ymd = format(
-                                                date,
-                                                "yyyy-MM-dd"
-                                            );
-                                            setValue(
-                                                "lastVisitedOn",
-                                                ymdToMmddyyyy(ymd),
-                                                {
-                                                    shouldValidate: true,
-                                                }
-                                            );
-                                        }}
-                                    />
-                                </PopoverContent>
-                            </Popover>
-                        </div>
-
-                        {errors.lastVisitedOn ? (
-                            <div className="text-xs text-red-600">
-                                {errors.lastVisitedOn.message}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-muted-foreground">
-                                Type MM/DD/YYYY or use the calendar
-                            </div>
-                        )}
-                    </div>
-
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium">
-                            Revist After Days
-                        </label>
+                    <FormField
+                        label="Revisit After Days"
+                        error={errors.revisitAfterDays?.message}
+                        helperText="Allowed: 1 to 20"
+                    >
                         <Input
                             type="number"
                             min={1}
@@ -306,16 +195,7 @@ export function UpdateCompanyDialog({
                                 valueAsNumber: true,
                             })}
                         />
-                        {errors.revisitAfterDays ? (
-                            <div className="text-xs text-red-600">
-                                {errors.revisitAfterDays.message}
-                            </div>
-                        ) : (
-                            <div className="text-xs text-muted-foreground">
-                                Allowed: 1 to 20
-                            </div>
-                        )}
-                    </div>
+                    </FormField>
 
                     <TagMultiSelect
                         label="Tags"

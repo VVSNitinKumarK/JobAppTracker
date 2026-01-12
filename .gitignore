@@ -88,3 +88,8 @@ Thumbs.db
 MCP_HIRING_INSIGHTS_PLAN.md
 *_PLAN.md
 *_TODO.md
+
+###############
+# Claude Code temp files
+###############
+**/tmpclaude-*

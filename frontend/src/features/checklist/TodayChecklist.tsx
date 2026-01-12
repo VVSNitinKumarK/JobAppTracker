@@ -1,4 +1,3 @@
-import { format } from "date-fns";
 import { Check, Plus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -7,6 +6,7 @@ import { getCompanies } from "../companies/api";
 import type { CompanyRow } from "../companies/types";
 import { type PickerCompany } from "./types";
 import { cn } from "../../lib/utils";
+import { dateToYmd } from "@/lib/dateUtils";
 import {
     useChecklist,
     useSubmitChecklist,
@@ -19,14 +19,6 @@ import { Input } from "@/components/ui/input";
 type Properties = {
     selectedDate: Date;
 };
-
-function normalizePrefix(s: string) {
-    return s.trim();
-}
-
-function toYmd(d: Date) {
-    return format(d, "yyyy-MM-dd");
-}
 
 function groupItems(items: ChecklistItem[], selectedDateYmd: string) {
     const today: ChecklistItem[] = [];
@@ -107,7 +99,7 @@ function ChecklistPill(props: {
 }
 
 export function TodayChecklist({ selectedDate }: Properties) {
-    const dateYmd = toYmd(selectedDate);
+    const dateYmd = dateToYmd(selectedDate);
 
     const { data, isLoading, isError } = useChecklist(dateYmd);
     const toggle = useToggleChecklistItem(dateYmd);
@@ -125,7 +117,7 @@ export function TodayChecklist({ selectedDate }: Properties) {
         [items]
     );
 
-    const searchTerm = normalizePrefix(search);
+    const searchTerm = search.trim();
 
     const companySearch = useQuery({
         queryKey: ["companies", "picker", searchTerm],

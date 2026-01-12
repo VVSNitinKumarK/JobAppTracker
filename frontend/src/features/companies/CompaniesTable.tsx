@@ -1,15 +1,12 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { format } from "date-fns";
+import { useEffect, useMemo, useState } from "react";
 import {
-    type ColumnDef,
     flexRender,
     getCoreRowModel,
     useReactTable,
     type RowSelectionState,
 } from "@tanstack/react-table";
-import { ExternalLink, Plus, Filter } from "lucide-react";
+import { Plus, Filter } from "lucide-react";
 
-import { Badge } from "../../components/ui/badge";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import {
@@ -22,7 +19,6 @@ import {
 } from "../../components/ui/table";
 
 import { useCompanies, useDeleteCompanies, useGetTags } from "./hooks";
-import type { CompanyRow } from "./types";
 import { AddCompanyDialog } from "./AddCompanyDialog";
 import { UpdateCompanyDialog } from "./UpdateCompanyDialog";
 import { DeleteCompaniesDialog } from "./DeleteCompaniesDialog";
@@ -30,53 +26,7 @@ import {
     CompaniesFilterDialog,
     type CompanyFilters as UICompanyFilters,
 } from "./CompaniesFilterDialog";
-
-import { cn } from "@/lib/utils";
-
-function formatYmdOrDash(v: string | null) {
-    if (!v) {
-        return "-";
-    }
-
-    return format(new Date(`${v}T00:00:00`), "MM-dd-yyyy");
-}
-
-function IndeterminateCheckbox(properties: {
-    checked: boolean;
-    indeterminate: boolean;
-    onChange: () => void;
-    ariaLabel: string;
-    className?: string;
-    disabled?: boolean;
-}) {
-    const ref = useRef<HTMLInputElement | null>(null);
-
-    useEffect(() => {
-        if (!ref.current) {
-            return;
-        }
-
-        ref.current.indeterminate = properties.indeterminate;
-    }, [properties.indeterminate]);
-
-    return (
-        <input
-            ref={ref}
-            type="checkbox"
-            aria-label={properties.ariaLabel}
-            checked={properties.checked}
-            onChange={properties.onChange}
-            disabled={properties.disabled}
-            className={
-                properties.className ??
-                "h-4 w-4 rounded border border-input bg-background align-middle"
-            }
-        />
-    );
-}
-
-// eslint-disable-next-line @typescript-eslint/no-unused-expressions
-("use no memo");
+import { createCompanyColumns } from "./columns";
 
 export function CompaniesTable() {
     const [query, setQuery] = useState("");
@@ -101,9 +51,10 @@ export function CompaniesTable() {
             // Use lastVisitedOn date filter for backend 'lastVisitedOn' parameter
             lastVisitedOn: uiFilters.lastVisitedOnYmd || undefined,
             // Use tags filter for backend 'tags' parameter
-            tags: uiFilters.tagsAny && uiFilters.tagsAny.length > 0
-                ? uiFilters.tagsAny
-                : undefined,
+            tags:
+                uiFilters.tagsAny && uiFilters.tagsAny.length > 0
+                    ? uiFilters.tagsAny
+                    : undefined,
         };
     }, [page, size, query, uiFilters]);
 
@@ -133,128 +84,8 @@ export function CompaniesTable() {
         setPage(0); // Reset to first page when query changes
     }, [query, uiFilters]);
 
-    const columns = useMemo<ColumnDef<CompanyRow>[]>(
-        () => [
-            {
-                id: "select",
-                header: ({ table }) => {
-                    const isAllPage = table.getIsAllPageRowsSelected();
-                    const isSomePage = table.getIsSomePageRowsSelected();
-
-                    return (
-                        <div className="w-8 flex items-center justify-center">
-                            <IndeterminateCheckbox
-                                ariaLabel="Select all rows on this page"
-                                checked={isAllPage}
-                                indeterminate={!isAllPage && isSomePage}
-                                onChange={() =>
-                                    table.toggleAllPageRowsSelected()
-                                }
-                                disabled={table.getRowModel().rows.length === 0}
-                                className={cn(
-                                    "h-4 w-4 rounded border border-input bg-background",
-                                    anySelected
-                                        ? "visible"
-                                        : "invisible group-hover:visible"
-                                )}
-                            />
-                        </div>
-                    );
-                },
-                cell: ({ row, table }) => {
-                    const show =
-                        Object.keys(table.getState().rowSelection).length > 0;
-
-                    return (
-                        <div className="w-8 flex items-center justify-center">
-                            <input
-                                type="checkbox"
-                                aria-label={`Select ${row.original.companyName}`}
-                                checked={row.getIsSelected()}
-                                onChange={() => row.toggleSelected()}
-                                className={cn(
-                                    "h-4 w-4 rounded border border-input bg-background",
-                                    show
-                                        ? "visible"
-                                        : "invisible group-hover:visible"
-                                )}
-                            />
-                        </div>
-                    );
-                },
-                enableSorting: false,
-                enableHiding: false,
-                size: 36,
-            },
-            {
-                accessorKey: "companyName",
-                header: "Company",
-                cell: ({ row }) => (
-                    <div className="font-medium">
-                        {row.original.companyName}
-                    </div>
-                ),
-            },
-            {
-                accessorKey: "lastVisitedOn",
-                header: "Last Visited",
-                cell: ({ row }) => (
-                    <div className="tabular-nums">
-                        {formatYmdOrDash(row.original.lastVisitedOn)}
-                    </div>
-                ),
-            },
-            {
-                accessorKey: "nextVisitOn",
-                header: "Next Visit",
-                cell: ({ row }) => (
-                    <div className="tabular-nums">
-                        {formatYmdOrDash(row.original.nextVisitOn)}
-                    </div>
-                ),
-            },
-            {
-                accessorKey: "tags",
-                header: "Tags",
-                cell: ({ row }) => {
-                    const tags = row.original.tags ?? [];
-                    if (tags.length === 0) {
-                        return <span className="text-muted-foreground">-</span>;
-                    }
-
-                    return (
-                        <div className="flex flex-wrap gap-1.5">
-                            {tags.map((t) => (
-                                <Badge
-                                    key={t.tagKey}
-                                    variant="secondary"
-                                    className="rounded-full"
-                                >
-                                    {t.tagName}
-                                </Badge>
-                            ))}
-                        </div>
-                    );
-                },
-            },
-            {
-                id: "open",
-                header: "",
-                cell: ({ row }) => (
-                    <Button variant="ghost" size="sm" asChild className="gap-2">
-                        <a
-                            href={row.original.careersUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            title="Open careers page"
-                        >
-                            <ExternalLink className="h-4 w-4" />
-                            Open
-                        </a>
-                    </Button>
-                ),
-            },
-        ],
+    const columns = useMemo(
+        () => createCompanyColumns(anySelected),
         [anySelected]
     );
 
@@ -278,6 +109,7 @@ export function CompaniesTable() {
 
     const [updateOpen, setUpdateOpen] = useState(false);
     const [deleteOpen, setDeleteOpen] = useState(false);
+    const [deleteError, setDeleteError] = useState<string | null>(null);
 
     const selectedForUpdate = selectedCount === 1 ? selectedCompanies[0] : null;
 
@@ -494,7 +326,10 @@ export function CompaniesTable() {
                             variant="outline"
                             size="sm"
                             onClick={() => setPage((p) => p + 1)}
-                            disabled={page >= Math.ceil(totalCount / size) - 1 || isLoading}
+                            disabled={
+                                page >= Math.ceil(totalCount / size) - 1 ||
+                                isLoading
+                            }
                         >
                             Next
                         </Button>
@@ -521,18 +356,33 @@ export function CompaniesTable() {
 
             <DeleteCompaniesDialog
                 open={deleteOpen}
-                onOpenChange={setDeleteOpen}
+                onOpenChange={(open) => {
+                    setDeleteOpen(open);
+                    if (!open) {
+                        setDeleteError(null);
+                    }
+                }}
                 companyNames={selectedCompanies.map(
                     (company) => company.companyName
                 )}
                 isDeleting={deleteMutation.isPending}
+                errorMessage={deleteError}
                 onConfirm={async () => {
-                    const ids = selectedCompanies.map(
-                        (company) => company.companyId
-                    );
-                    await deleteMutation.mutateAsync(ids);
-                    setDeleteOpen(false);
-                    clearSelection();
+                    try {
+                        setDeleteError(null);
+                        const ids = selectedCompanies.map(
+                            (company) => company.companyId
+                        );
+                        await deleteMutation.mutateAsync(ids);
+                        setDeleteOpen(false);
+                        clearSelection();
+                    } catch (error) {
+                        setDeleteError(
+                            error instanceof Error
+                                ? error.message
+                                : "Failed to delete companies"
+                        );
+                    }
                 }}
             />
 

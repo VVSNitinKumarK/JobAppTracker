@@ -1,5 +1,6 @@
 import { api } from "../../lib/api";
-import type { CompanyRow, TagDto } from "./types";
+import type { CompanyRow } from "./types";
+import type { TagDto } from "@/types/api";
 
 export type CompaniesResponse = {
     items: CompanyRow[];
@@ -7,51 +8,6 @@ export type CompaniesResponse = {
     size: number;
     total: number;
 };
-
-type ApiResponse<T> = T | { data: T };
-
-function isObject(value: unknown): value is Record<string, unknown> {
-    return typeof value === "object" && value !== null;
-}
-
-function unwrap<T>(res: ApiResponse<T>): T {
-    if (isObject(res) && "data" in res) {
-        return (res as { data: T }).data;
-    }
-    return res as T;
-}
-
-type BackendObjectResponse = {
-    items: CompanyRow[];
-    page?: number;
-    size?: number;
-    total?: number;
-};
-
-type BackendSpringPageResponse = {
-    content: CompanyRow[];
-    totalElements?: number;
-    number?: number;
-    size?: number;
-};
-
-function isBackendObjectResponse(x: unknown): x is BackendObjectResponse {
-    return (
-        isObject(x) &&
-        "items" in x &&
-        Array.isArray((x as Record<string, unknown>).items)
-    );
-}
-
-function isBackendSpringPageResponse(
-    x: unknown
-): x is BackendSpringPageResponse {
-    return (
-        isObject(x) &&
-        "content" in x &&
-        Array.isArray((x as Record<string, unknown>).content)
-    );
-}
 
 export type DueFilter = "today" | "overdue" | "upcoming";
 
@@ -81,37 +37,9 @@ export async function getCompanies(params?: {
     if (date) query.set("date", date);
     if (lastVisitedOn) query.set("lastVisitedOn", lastVisitedOn);
 
-    const res = (await api.get(
+    return (await api.get(
         `/companies?${query.toString()}`
-    )) as ApiResponse<unknown>;
-
-    const data = unwrap(res);
-
-    if (Array.isArray(data)) {
-        // assume CompanyRow[]
-        const items = data as CompanyRow[];
-        return { items, page, size, total: items.length };
-    }
-
-    if (isBackendObjectResponse(data)) {
-        return {
-            items: data.items,
-            page: Number(data.page ?? page),
-            size: Number(data.size ?? size),
-            total: Number(data.total ?? data.items.length),
-        };
-    }
-
-    if (isBackendSpringPageResponse(data)) {
-        return {
-            items: data.content,
-            page: Number(data.number ?? page),
-            size: Number(data.size ?? size),
-            total: Number(data.totalElements ?? data.content.length),
-        };
-    }
-
-    return { items: [], page, size, total: 0 };
+    )) as CompaniesResponse;
 }
 
 export type CreateCompanyRequest = {
@@ -125,11 +53,7 @@ export type CreateCompanyRequest = {
 export async function createCompany(
     payload: CreateCompanyRequest
 ): Promise<CompanyRow> {
-    const res = (await api.post(
-        `/companies`,
-        payload
-    )) as ApiResponse<CompanyRow>;
-    return unwrap(res);
+    return (await api.post(`/companies`, payload)) as CompanyRow;
 }
 
 export type UpdateCompanyRequest = {
@@ -144,21 +68,13 @@ export async function updateCompany(
     companyId: string,
     payload: UpdateCompanyRequest
 ): Promise<CompanyRow> {
-    const res = (await api.put(
-        `/companies/${companyId}`,
-        payload
-    )) as ApiResponse<CompanyRow>;
-    return unwrap(res);
+    return (await api.put(`/companies/${companyId}`, payload)) as CompanyRow;
 }
 
 export async function deleteCompany(companyId: string): Promise<void> {
     await api.delete(`/companies/${companyId}`);
 }
 
-// keep old name if already used elsewhere
-export const deleteComnpany = deleteCompany;
-
 export async function getTags(): Promise<TagDto[]> {
-    const res = (await api.get(`/tags`)) as ApiResponse<TagDto[]>;
-    return unwrap(res);
+    return (await api.get(`/tags`)) as TagDto[];
 }

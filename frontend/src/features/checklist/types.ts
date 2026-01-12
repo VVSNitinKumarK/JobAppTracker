@@ -1,3 +1,5 @@
+import type { TagDto } from "@/types/api";
+
 export type ChecklistItem = {
     companyId: string;
     companyName: string;
@@ -10,11 +12,6 @@ export type ChecklistItem = {
     updatedAt: string;
     completed: boolean;
     inChecklist: boolean;
-};
-
-export type TagDto = {
-    tagKey: string;
-    tagName: string;
 };
 
 export type PickerCompany = {
