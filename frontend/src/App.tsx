@@ -3,6 +3,7 @@ import { addDays } from "date-fns";
 import { CalendarDayPanel } from "./features/calendar/CalendarPanel";
 import { TodayChecklist } from "./features/checklist/TodayChecklist";
 import { CompaniesTable } from "./features/companies/CompaniesTable";
+import { Toaster } from "./components/ui/sonner";
 
 function Header() {
     return <header className="h-12 border-b bg-background" />;
@@ -62,6 +63,7 @@ export default function App() {
             </main>
 
             <Footer />
+            <Toaster position="top-right" offset={60} />
         </div>
     );
 }

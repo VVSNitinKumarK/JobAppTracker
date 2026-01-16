@@ -1,4 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { STALE_TIME } from "@/lib/constants";
 import {
     getCompanies,
     createCompany,
@@ -29,7 +31,7 @@ export function useCompanies(params: CompanyFilters) {
     return useQuery({
         queryKey: companyKeys.list(params),
         queryFn: () => getCompanies(params),
-        staleTime: 30_000,
+        staleTime: STALE_TIME.COMPANIES,
     });
 }
 
@@ -40,6 +42,10 @@ export function useCreateCompany() {
         mutationFn: (payload: CreateCompanyRequest) => createCompany(payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: companyKeys.all });
+            toast.success("Company added");
+        },
+        onError: () => {
+            toast.error("Failed to add company");
         },
     });
 }
@@ -54,6 +60,10 @@ export function useUpdateCompany() {
         }) => updateCompany(args.companyId, args.payload),
         onSuccess: () => {
             queryClient.invalidateQueries({ queryKey: companyKeys.all });
+            toast.success("Company updated");
+        },
+        onError: () => {
+            toast.error("Failed to update company");
         },
     });
 }
@@ -65,8 +75,13 @@ export function useDeleteCompanies() {
         mutationFn: async (companyIds: string[]) => {
             await Promise.all(companyIds.map((id) => deleteCompany(id)));
         },
-        onSuccess: () => {
+        onSuccess: (_data, companyIds) => {
             queryClient.invalidateQueries({ queryKey: companyKeys.all });
+            const count = companyIds.length;
+            toast.success(count === 1 ? "Company deleted" : `${count} companies deleted`);
+        },
+        onError: () => {
+            toast.error("Failed to delete companies");
         },
     });
 }
@@ -80,6 +95,6 @@ export function useGetTags() {
     return useQuery({
         queryKey: tagKeys.list(),
         queryFn: getTags,
-        staleTime: 5 * 60_000,
+        staleTime: STALE_TIME.TAGS,
     });
 }

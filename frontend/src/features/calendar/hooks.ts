@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { STALE_TIME } from "@/lib/constants";
 import { getMaxNextVisitOn } from "./meta";
 
 export const metaKeys = {
@@ -10,6 +11,6 @@ export function useMaxNextVisitOn() {
     return useQuery({
         queryKey: metaKeys.maxNextVisitOn(),
         queryFn: getMaxNextVisitOn,
-        staleTime: 60_000,
+        staleTime: STALE_TIME.META,
     });
 }

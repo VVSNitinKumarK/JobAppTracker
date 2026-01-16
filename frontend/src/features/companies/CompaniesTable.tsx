@@ -18,6 +18,8 @@ import {
     TableRow,
 } from "../../components/ui/table";
 
+import { UI } from "@/lib/constants";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useCompanies, useDeleteCompanies, useGetTags } from "./hooks";
 import { AddCompanyDialog } from "./AddCompanyDialog";
 import { UpdateCompanyDialog } from "./UpdateCompanyDialog";
@@ -29,9 +31,11 @@ import {
 import { createCompanyColumns } from "./columns";
 
 export function CompaniesTable() {
+    "use no memo";
+
     const [query, setQuery] = useState("");
     const [page, setPage] = useState(0);
-    const [size] = useState(50);
+    const [size] = useState(UI.PAGE_SIZE);
 
     const [uiFilters, setUiFilters] = useState<UICompanyFilters>({
         lastVisitedOnYmd: null,
@@ -63,9 +67,6 @@ export function CompaniesTable() {
     const items = useMemo(() => data?.items ?? [], [data]);
     const totalCount = data?.total ?? 0;
 
-    // All filtering is now server-side!
-    const filteredItems = items;
-
     const [rowSelection, setRowSelection] = useState<RowSelectionState>({});
     const anySelected = Object.keys(rowSelection).length > 0;
 
@@ -91,7 +92,7 @@ export function CompaniesTable() {
 
     // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
-        data: filteredItems,
+        data: items,
         columns,
         getCoreRowModel: getCoreRowModel(),
         enableRowSelection: true,
@@ -123,7 +124,7 @@ export function CompaniesTable() {
                 <div>
                     <h2 className="text-base font-semibold">Companies</h2>
                     <div className="mt-1 text-xs text-muted-foreground">
-                        Showing {filteredItems.length} of {totalCount} total
+                        Showing {items.length} of {totalCount} total
                     </div>
                 </div>
 
@@ -248,9 +249,38 @@ export function CompaniesTable() {
 
             <div className="mt-4 flex-1 overflow-auto rounded-md border">
                 {isLoading ? (
-                    <div className="p-4 text-sm text-muted-foreground">
-                        Loading companies...
-                    </div>
+                    <Table>
+                        <TableHeader>
+                            <TableRow>
+                                <TableHead className="w-10" />
+                                <TableHead>Company</TableHead>
+                                <TableHead>Last Visited</TableHead>
+                                <TableHead>Next Visit</TableHead>
+                                <TableHead>Tags</TableHead>
+                            </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                            {Array.from({ length: 8 }).map((_, i) => (
+                                <TableRow key={i}>
+                                    <TableCell>
+                                        <Skeleton className="h-4 w-4" />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Skeleton className="h-4 w-32" />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Skeleton className="h-4 w-20" />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Skeleton className="h-4 w-20" />
+                                    </TableCell>
+                                    <TableCell>
+                                        <Skeleton className="h-5 w-16 rounded-full" />
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                        </TableBody>
+                    </Table>
                 ) : isError ? (
                     <div className="p-4 text-sm text-red-600">
                         Failed to load companies.

@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { getCompanies } from "../companies/api";
 import type { CompanyRow } from "../companies/types";
 import { type PickerCompany } from "./types";
-import { cn } from "../../lib/utils";
+import { cn } from "@/lib/utils.ts";
 import { dateToYmd } from "@/lib/dateUtils";
+import { UI } from "@/lib/constants";
 import {
     useChecklist,
     useSubmitChecklist,
@@ -15,6 +16,7 @@ import {
 import type { ChecklistItem } from "./types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type Properties = {
     selectedDate: Date;
@@ -265,10 +267,38 @@ export function TodayChecklist({ selectedDate }: Properties) {
 
             {/* Scroll area wrapper takes remaining height */}
             <div className="mt-4 flex-1">
-                <div className="space-y-5 max-h-[260px] overflow-y-auto pr-1">
+                <div
+                    className="space-y-5 overflow-y-auto pr-1"
+                    style={{ maxHeight: UI.CHECKLIST_MAX_HEIGHT }}
+                >
                     {isLoading ? (
-                        <div className="text-sm text-muted-foreground">
-                            Loading checklist…
+                        <div className="space-y-4">
+                            <div>
+                                <Skeleton className="h-4 w-16 mb-2" />
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Skeleton className="h-5 w-5 rounded" />
+                                        <Skeleton className="h-7 w-28 rounded-full" />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Skeleton className="h-5 w-5 rounded" />
+                                        <Skeleton className="h-7 w-32 rounded-full" />
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <Skeleton className="h-4 w-12 mb-2" />
+                                <div className="flex flex-col gap-2">
+                                    <div className="flex items-center gap-2">
+                                        <Skeleton className="h-5 w-5 rounded" />
+                                        <Skeleton className="h-7 w-24 rounded-full" />
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <Skeleton className="h-5 w-5 rounded" />
+                                        <Skeleton className="h-7 w-36 rounded-full" />
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     ) : null}
 

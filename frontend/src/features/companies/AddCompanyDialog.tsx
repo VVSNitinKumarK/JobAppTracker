@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { z } from "zod";
 import { useForm, useWatch } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -70,11 +70,14 @@ export function AddCompanyDialog({
     });
 
     const { reset } = form;
+    const prevOpenRef = useRef(false);
 
     useEffect(() => {
-        if (open) {
+        // Only reset when transitioning from closed to open
+        if (open && !prevOpenRef.current) {
             reset(defaultValues);
         }
+        prevOpenRef.current = open;
     }, [open, defaultValues, reset]);
 
     const {
@@ -137,7 +140,7 @@ export function AddCompanyDialog({
                         error={errors.careersUrl?.message}
                     >
                         <Input
-                            placeholder="https://jobs.netlflix.com"
+                            placeholder="https://jobs.netflix.com"
                             {...register("careersUrl")}
                         />
                     </FormField>

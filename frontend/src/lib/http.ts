@@ -32,14 +32,17 @@ async function readJsonSafely(response: Response): Promise<Json | null> {
     }
 }
 
-export async function http<T>(
+export async function http<T = void>(
     input: RequestInfo | URL,
     init?: RequestInit
 ): Promise<T> {
+    const method = init?.method?.toUpperCase() ?? "GET";
+    const hasBody = method !== "GET" && method !== "HEAD";
+
     const response = await fetch(input, {
         ...init,
         headers: {
-            "Content-Type": "application/json",
+            ...(hasBody ? { "Content-Type": "application/json" } : {}),
             ...(init?.headers ?? {}),
         },
     });

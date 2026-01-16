@@ -92,7 +92,7 @@ export function TagMultiSelect({
     }
 
     function removeTag(tagKey: string) {
-        onChange(value.filter((tag) => tag.key != tagKey));
+        onChange(value.filter((tag) => tag.key !== tagKey));
     }
 
     function createFromText(raw: string): TagOption | null {

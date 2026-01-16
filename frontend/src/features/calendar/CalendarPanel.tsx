@@ -1,7 +1,7 @@
 import { isBefore, startOfMonth, subMonths, format } from "date-fns";
 import { Calendar } from "../../components/ui/calendar";
-import { cn } from "../../lib/utils";
 import { dateToYmd } from "@/lib/dateUtils";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useChecklist } from "../checklist/hooks";
 import { useMaxNextVisitOn } from "./hooks";
 
@@ -51,7 +51,7 @@ export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
 
                     <div className="mb-2 text-xs text-muted-foreground">
                         {maxMeta.isLoading ? (
-                            "loading range..."
+                            <Skeleton className="h-3 w-36" />
                         ) : (
                             <>
                                 Range: {format(fromMonth, "MMM yyyy")} -{" "}
@@ -92,20 +92,17 @@ export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
                     </div>
 
                     <div className="mt-3 flex-1 rounded-md border p-3">
-                        <div
-                            className={cn(
-                                "text-sm font-semibold",
-                                isPast ? "text-foreground" : "text-foreground"
-                            )}
-                        >
+                        <div className="text-sm font-semibold">
                             {heading}
                         </div>
 
                         <div className="mt-2">
                             {checklist.isLoading ? (
-                                <div className="text-sm text-muted-foreground">
-                                    Loading...
-                                </div>
+                                <ul className="list-disc space-y-1 pl-5">
+                                    <li><Skeleton className="h-4 w-24" /></li>
+                                    <li><Skeleton className="h-4 w-20" /></li>
+                                    <li><Skeleton className="h-4 w-28" /></li>
+                                </ul>
                             ) : checklist.isError ? (
                                 <div className="text-sm text-red-600">
                                     Failed to load day list.

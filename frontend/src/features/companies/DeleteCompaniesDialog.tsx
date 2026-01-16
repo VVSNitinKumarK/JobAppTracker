@@ -47,8 +47,8 @@ export function DeleteCompaniesDialog({
 
                     <div className="max-h-48 overflow-auto rounded-md border p-2">
                         <ul className="space-y-1 text-sm">
-                            {companyNames.map((n) => (
-                                <li key={n} className="truncate">
+                            {companyNames.map((n, idx) => (
+                                <li key={idx} className="truncate">
                                     • {n}
                                 </li>
                             ))}

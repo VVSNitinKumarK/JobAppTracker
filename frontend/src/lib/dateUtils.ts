@@ -28,5 +28,5 @@ export function formatYmdOrDash(ymd: string | null): string {
         return "-";
     }
 
-    return format(new Date(`${ymd}T00:00:00`), "MM-dd-yyyy");
+    return format(new Date(`${ymd}T00:00:00`), "MM/dd/yyyy");
 }

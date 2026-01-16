@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import {
     getChecklistByDate,
     setChecklistCompleted,
@@ -68,6 +69,7 @@ export function useToggleChecklistItem(date: string) {
                     context.previousData
                 );
             }
+            toast.error("Failed to update checklist");
         },
 
         onSettled: async () => {
@@ -93,6 +95,10 @@ export function useSubmitChecklist(date: string) {
             await queryClient.invalidateQueries({
                 queryKey: ["companies"],
             });
+            toast.success("Checklist submitted");
+        },
+        onError: () => {
+            toast.error("Failed to submit checklist");
         },
     });
 }
