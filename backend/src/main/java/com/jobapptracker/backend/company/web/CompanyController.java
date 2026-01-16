@@ -1,5 +1,7 @@
 package com.jobapptracker.backend.company.web;
 
+import com.jobapptracker.backend.company.dto.BatchDeleteRequest;
+import com.jobapptracker.backend.company.dto.BatchDeleteResponse;
 import com.jobapptracker.backend.company.dto.CompanyCreateRequest;
 import com.jobapptracker.backend.company.dto.CompanyDto;
 import com.jobapptracker.backend.company.dto.CompanyUpdateRequest;
@@ -36,7 +38,8 @@ public class CompanyController {
             @RequestParam(required = false) String date,
             @RequestParam(required = false) String lastVisitedOn
     ) {
-        log.info("GET /api/companies - page={}, size={}, q={}, tags={}, due={}, date={}, lastVisitedOn={}",
+        log.info("GET /api/companies");
+        log.debug("Listing companies: page={}, size={}, q={}, tags={}, due={}, date={}, lastVisitedOn={}",
                 page, size, q, tags, due, date, lastVisitedOn);
         // Defaults are handled in service layer using PaginationConstants
         PagedCompaniesResponse response = companyService.listCompanies(page, size, q, tags, due, date, lastVisitedOn);
@@ -45,18 +48,18 @@ public class CompanyController {
 
     @PostMapping
     public ResponseEntity<CompanyDto> createCompany(@Valid @RequestBody CompanyCreateRequest request) {
-        log.info("POST /api/companies - companyName={}, careersUrl={}",
-                request.companyName(), request.careersUrl());
+        log.info("POST /api/companies");
+        log.debug("Creating company: name={}, url={}", request.companyName(), request.careersUrl());
         CompanyDto created = companyService.createCompany(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PutMapping("/{companyId}")
+    @PatchMapping("/{companyId}")
     public ResponseEntity<CompanyDto> updateCompany(
             @PathVariable UUID companyId,
             @Valid @RequestBody CompanyUpdateRequest request
     ) {
-        log.info("PUT /api/companies/{} - updating company", companyId);
+        log.info("PATCH /api/companies/{} - updating company", companyId);
         CompanyDto updated = companyService.updateCompany(companyId, request);
         return ResponseEntity.ok(updated);
     }
@@ -69,15 +72,9 @@ public class CompanyController {
     }
 
     @DeleteMapping("/batch")
-    public ResponseEntity<BatchDeleteResponse> deleteCompanies(@RequestBody BatchDeleteRequest request) {
-        if (request.companyIds() == null || request.companyIds().isEmpty()) {
-            throw new IllegalArgumentException("Company IDs list cannot be empty");
-        }
+    public ResponseEntity<BatchDeleteResponse> deleteCompanies(@Valid @RequestBody BatchDeleteRequest request) {
         log.info("DELETE /api/companies/batch - deleting {} companies", request.companyIds().size());
         int deleted = companyService.deleteCompanies(request.companyIds());
         return ResponseEntity.ok(new BatchDeleteResponse(deleted, request.companyIds().size()));
     }
-
-    public record BatchDeleteRequest(java.util.List<UUID> companyIds) {}
-    public record BatchDeleteResponse(int deleted, int requested) {}
 }

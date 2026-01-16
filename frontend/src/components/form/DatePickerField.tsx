@@ -16,8 +16,6 @@ type Properties = {
     label: string;
     placeholder?: string;
     register: UseFormRegisterReturn;
-    // Using any here because this component needs to work with any form type
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setValue: UseFormSetValue<any>;
     value: string | undefined;
     error?: string;

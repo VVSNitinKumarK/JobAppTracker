@@ -2,7 +2,6 @@ package com.jobapptracker.backend.tag.repository;
 
 import com.jobapptracker.backend.company.repository.CompanyTagUtil;
 import com.jobapptracker.backend.config.DatabaseConstants;
-import com.jobapptracker.backend.config.PaginationConstants;
 import com.jobapptracker.backend.tag.dto.TagDto;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,18 +37,12 @@ public class TagRepository {
         );
     }
 
-    /**
-     * Ensures tags exist in the database by their display names.
-     * Creates tag_key by normalizing the display name.
-     *
-     * @param tagDisplayNames List of tag display names (e.g., "Big Tech", "ML/AI")
-     */
     public void ensureTagsExist(List<String> tagDisplayNames) {
         if (tagDisplayNames == null || tagDisplayNames.isEmpty()) {
             return;
         }
 
-        log.info("Ensuring {} tags exist in database", tagDisplayNames.size());
+        log.debug("Ensuring {} tags exist in database", tagDisplayNames.size());
 
         String sqlQuery = """
             INSERT INTO %s (tag_key, tag_name)
@@ -60,7 +53,7 @@ public class TagRepository {
         jdbcTemplate.batchUpdate(
                 sqlQuery,
                 tagDisplayNames,
-                PaginationConstants.MAX_PAGE_SIZE,
+                DatabaseConstants.BATCH_SIZE,
                 (prepareStatement, displayName) -> {
                     String key = CompanyTagUtil.toTagKey(displayName);
                     prepareStatement.setString(1, key);
@@ -68,6 +61,6 @@ public class TagRepository {
                 }
         );
 
-        log.info("Tags ensured successfully in database: {} tags processed", tagDisplayNames.size());
+        log.debug("Tags ensured successfully in database: {} tags processed", tagDisplayNames.size());
     }
 }

@@ -8,8 +8,10 @@ import com.jobapptracker.backend.company.dto.PagedCompaniesResponse;
 import com.jobapptracker.backend.company.repository.CompanyRepository;
 import com.jobapptracker.backend.company.repository.CompanyTagUtil;
 import com.jobapptracker.backend.company.web.DueFilter;
+import com.jobapptracker.backend.config.DateUtils;
 import com.jobapptracker.backend.config.PaginationConstants;
 import com.jobapptracker.backend.tag.dto.TagDto;
+import com.jobapptracker.backend.tag.repository.TagRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -18,7 +20,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -30,9 +31,11 @@ public class CompanyService {
     private static final Logger log = LoggerFactory.getLogger(CompanyService.class);
 
     private final CompanyRepository companyRepository;
+    private final TagRepository tagRepository;
 
-    public CompanyService(CompanyRepository repository) {
-        this.companyRepository = repository;
+    public CompanyService(CompanyRepository companyRepository, TagRepository tagRepository) {
+        this.companyRepository = companyRepository;
+        this.tagRepository = tagRepository;
     }
 
     public PagedCompaniesResponse listCompanies(
@@ -48,14 +51,13 @@ public class CompanyService {
         int s = (size == null) ? PaginationConstants.DEFAULT_PAGE_SIZE : size;
 
         if (p < 0) {
-            throw new IllegalStateException("page must be >= 0, but got: " + p);
+            throw new IllegalArgumentException("page must be >= 0, but got: " + p);
         }
-        // Prevent integer overflow when calculating offset = page * size
         if (p > PaginationConstants.MAX_PAGE_NUMBER) {
-            throw new IllegalStateException("page must be <= " + PaginationConstants.MAX_PAGE_NUMBER + " (too many records), but got: " + p);
+            throw new IllegalArgumentException("page must be <= " + PaginationConstants.MAX_PAGE_NUMBER + ", but got: " + p);
         }
         if (s <= 0) {
-            throw new IllegalStateException("size must be > 0, but got: " + s);
+            throw new IllegalArgumentException("size must be > 0, but got: " + s);
         }
 
         if (s > PaginationConstants.MAX_PAGE_SIZE) {
@@ -64,8 +66,8 @@ public class CompanyService {
 
         List<String> tags = parseTags(tagsCsv);
         DueFilter due = DueFilter.fromStringOrNull(dueRaw);
-        LocalDate date = parseDateOrNull(dateRaw);
-        LocalDate lastVisitedOn = parseDateOrNull(lastVisitedOnRaw);
+        LocalDate date = DateUtils.parseDateOrNull(dateRaw);
+        LocalDate lastVisitedOn = DateUtils.parseDateOrNull(lastVisitedOnRaw);
 
         List<CompanyDto> items = companyRepository.findCompanies(p, s, q, tags, due, date, lastVisitedOn);
         long total = companyRepository.countCompanies(q, tags, due, date, lastVisitedOn);
@@ -86,70 +88,26 @@ public class CompanyService {
                 .toList();
     }
 
-    private static LocalDate parseDateOrNull(String raw) {
-        if (raw == null || raw.isBlank()) {
-            return null;
-        }
-
-        try {
-            return LocalDate.parse(raw.trim());
-        } catch (DateTimeParseException e) {
-            throw new IllegalStateException("Invalid date: " + raw + " expected YYYY-MM-DD)");
-        }
-    }
-
-    /**
-     * Normalizes tags coming from request payload into display names.
-     * Supports:
-     *  - List<String> (display names)
-     *  - List<TagDto> (tagName preferred; fallback to tagKey)
-     */
-    private static List<String> normalizeTagDisplayNames(List<?> rawTags) {
-        if (rawTags == null || rawTags.isEmpty()) {
+    private static List<String> extractTagDisplayNames(List<TagDto> tags) {
+        if (tags == null || tags.isEmpty()) {
             return List.of();
         }
 
-        Object first = rawTags.getFirst();
-
-        // Already a List<String>
-        if (first instanceof String) {
-            @SuppressWarnings("unchecked")
-            List<String> tags = (List<String>) rawTags;
-
-            return tags.stream()
-                    .filter(Objects::nonNull)
-                    .map(String::trim)
-                    .filter(s -> !s.isBlank())
-                    .distinct()
-                    .toList();
-        }
-
-        // List<TagDto>
-        if (first instanceof TagDto) {
-            @SuppressWarnings("unchecked")
-            List<TagDto> tags = (List<TagDto>) rawTags;
-
-            return tags.stream()
-                    .filter(Objects::nonNull)
-                    .map(t -> {
-                        String name = t.tagName();
-                        String key = t.tagKey();
-
-                        // Prefer tagName (display name), fallback to tagKey if name is blank
-                        String candidate = (name != null && !name.isBlank()) ? name : key;
-                        return (candidate == null) ? "" : candidate.trim();
-                    })
-                    .filter(s -> !s.isBlank())
-                    .distinct()
-                    .toList();
-        }
-
-        throw new IllegalStateException("Unsupported tags payload type: " + first.getClass().getName());
+        return tags.stream()
+                .filter(Objects::nonNull)
+                .map(t -> {
+                    String name = t.tagName();
+                    String key = t.tagKey();
+                    String candidate = (name != null && !name.isBlank()) ? name : key;
+                    return (candidate == null) ? "" : candidate.trim();
+                })
+                .filter(s -> !s.isBlank())
+                .distinct()
+                .toList();
     }
 
     @Transactional
     public CompanyDto createCompany(CompanyCreateRequest request) {
-        // Validation is handled by @Valid annotation in controller + JSR-303 annotations on DTO
         String name = request.companyName().trim();
         String url = request.careersUrl().trim();
         int revisit = (request.revisitAfterDays() == null) ? CompanyConstants.DEFAULT_REVISIT_AFTER_DAYS : request.revisitAfterDays();
@@ -157,7 +115,11 @@ public class CompanyService {
         log.info("Creating company: name={}, url={}, revisitAfterDays={}",
                 name, url, revisit);
 
-        List<String> tagNames = normalizeTagDisplayNames(request.tags());
+        List<String> tagNames = extractTagDisplayNames(request.tags());
+
+        if (!tagNames.isEmpty()) {
+            tagRepository.ensureTagsExist(tagNames);
+        }
 
         try {
             CompanyDto created = companyRepository.insertCompany(name, url, request.lastVisitedOn(), revisit, tagNames);
@@ -170,9 +132,6 @@ public class CompanyService {
 
     @Transactional
     public CompanyDto updateCompany(UUID companyId, CompanyUpdateRequest request) {
-        // @Valid annotation handles: null request, revisitAfterDays > 0
-        // Manual validation still needed for: blank strings (if provided), at least one field
-
         log.info("Updating company: id={}", companyId);
 
         String companyName = (request.companyName() == null) ? null : request.companyName().trim();
@@ -188,7 +147,7 @@ public class CompanyService {
 
         List<String> tagNames = null;
         if (request.tags() != null) {
-            tagNames = normalizeTagDisplayNames(request.tags());
+            tagNames = extractTagDisplayNames(request.tags());
         }
 
         boolean anyFieldProvided =
@@ -203,6 +162,10 @@ public class CompanyService {
         }
 
         Integer revisit = request.revisitAfterDays();
+
+        if (tagNames != null && !tagNames.isEmpty()) {
+            tagRepository.ensureTagsExist(tagNames);
+        }
 
         try {
             CompanyDto updated = companyRepository.updateCompany(
@@ -222,8 +185,14 @@ public class CompanyService {
             return updated;
         } catch (DuplicateKeyException e) {
             throw new DuplicateCareersUrlException(careersUrl);
-        } catch (DataIntegrityViolationException e) {
-            throw new BadUpdateRequestException("Invalid update (constraint violation): " + e.getMessage(), companyId, null);
+        } catch (DataIntegrityViolationException dataIntegrityException) {
+            throw new BadUpdateRequestException(
+                    "Invalid update request",
+                    "Constraint violation: " + dataIntegrityException.getMessage(),
+                    companyId,
+                    null,
+                    dataIntegrityException
+            );
         }
     }
 
@@ -242,10 +211,6 @@ public class CompanyService {
 
     @Transactional
     public int deleteCompanies(List<UUID> companyIds) {
-        if (companyIds == null || companyIds.isEmpty()) {
-            throw new IllegalArgumentException("companyIds list cannot be null or empty");
-        }
-
         log.info("Batch deleting {} companies", companyIds.size());
         int deleted = companyRepository.deleteCompanies(companyIds);
         log.info("Batch delete completed: {} out of {} companies deleted", deleted, companyIds.size());

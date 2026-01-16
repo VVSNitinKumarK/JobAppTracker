@@ -11,12 +11,15 @@ public record HealthResponse(
         Instant timestamp,
         Map<String, ComponentHealth> components
 ) {
+    public static final String STATUS_UP = "UP";
+    public static final String STATUS_DOWN = "DOWN";
+
     public static HealthResponse healthy(Map<String, ComponentHealth> components) {
-        return new HealthResponse("UP", Instant.now(), components);
+        return new HealthResponse(STATUS_UP, Instant.now(), components);
     }
 
     public static HealthResponse unhealthy(Map<String, ComponentHealth> components) {
-        return new HealthResponse("DOWN", Instant.now(), components);
+        return new HealthResponse(STATUS_DOWN, Instant.now(), components);
     }
 
     public record ComponentHealth(
@@ -24,11 +27,11 @@ public record HealthResponse(
             Map<String, Object> details
     ) {
         public static ComponentHealth up(Map<String, Object> details) {
-            return new ComponentHealth("UP", details);
+            return new ComponentHealth(STATUS_UP, details);
         }
 
         public static ComponentHealth down(String error) {
-            return new ComponentHealth("DOWN", Map.of("error", error));
+            return new ComponentHealth(STATUS_DOWN, Map.of("error", error));
         }
     }
 }

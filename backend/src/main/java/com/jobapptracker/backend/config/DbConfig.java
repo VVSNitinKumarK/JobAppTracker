@@ -1,12 +1,12 @@
 package com.jobapptracker.backend.config;
 
+import com.zaxxer.hikari.HikariDataSource;
 import io.github.cdimascio.dotenv.Dotenv;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.jdbc.core.JdbcTemplate;
-import org.springframework.jdbc.datasource.DriverManagerDataSource;
 
 import javax.sql.DataSource;
 
@@ -15,11 +15,17 @@ public class DbConfig {
 
     private static final Logger log = LoggerFactory.getLogger(DbConfig.class);
 
-    private static String require(String v, String name) {
-        if (v == null || v.isBlank()) {
+    private static final int POOL_MAX_SIZE = 10;
+    private static final int POOL_MIN_IDLE = 2;
+    private static final long IDLE_TIMEOUT_MS = 300_000;
+    private static final long CONNECTION_TIMEOUT_MS = 20_000;
+    private static final long MAX_LIFETIME_MS = 1_200_000;
+
+    private static String require(String value, String name) {
+        if (value == null || value.isBlank()) {
             throw new IllegalStateException("Missing required env var: " + name);
         }
-        return v;
+        return value;
     }
 
     @Bean
@@ -28,17 +34,27 @@ public class DbConfig {
 
         String envDir = System.getenv("AF_ENV_DIR");
         if (envDir == null || envDir.isBlank()) {
-            log.error("AF_ENV_DIR environment variable not set");
-            throw new IllegalStateException("AF_ENV_DIR must be set as a system variable");
+            throw new IllegalStateException(
+                    "AF_ENV_DIR environment variable must be set. " +
+                    "Expected: path to directory containing JobAppTracker/.env.local"
+            );
         }
 
-        log.info("Loading .env.local from directory: {}/JobAppTracker", envDir);
-        Dotenv dotenv = Dotenv.configure()
-                .directory(envDir + "/JobAppTracker")
-                .filename(".env.local")
-                .ignoreIfMalformed()
-                .ignoreIfMissing()
-                .load();
+        String envFilePath = envDir + "/JobAppTracker/.env.local";
+        log.info("Loading environment from: {}", envFilePath);
+
+        Dotenv dotenv;
+        try {
+            dotenv = Dotenv.configure()
+                    .directory(envDir + "/JobAppTracker")
+                    .filename(".env.local")
+                    .load();
+        } catch (Exception e) {
+            throw new IllegalStateException(
+                    "Failed to load .env.local from " + envFilePath + ". " +
+                    "Ensure the file exists and is readable.", e
+            );
+        }
 
         String host = require(dotenv.get("DB_HOST"), "DB_HOST");
         String port = require(dotenv.get("DB_PORT"), "DB_PORT");
@@ -47,22 +63,31 @@ public class DbConfig {
         String user = require(dotenv.get("DB_USERNAME"), "DB_USERNAME");
         String password = require(dotenv.get("DB_PASSWORD"), "DB_PASSWORD");
 
-
         String jdbcUrl = String.format(
                 "jdbc:postgresql://%s:%s/%s?currentSchema=%s",
                 host, port, db, schema
         );
 
-        log.info("Database connection configured: host={}, port={}, database={}, schema={}",
+        log.debug("Database connection configured: host={}, port={}, database={}, schema={}",
                 host, port, db, schema);
 
-        DriverManagerDataSource ds = new DriverManagerDataSource();
-        ds.setDriverClassName("org.postgresql.Driver");
-        ds.setUrl(jdbcUrl);
-        ds.setUsername(user);
-        ds.setPassword(password);
+        HikariDataSource dataSource = new HikariDataSource();
+        dataSource.setDriverClassName("org.postgresql.Driver");
+        dataSource.setJdbcUrl(jdbcUrl);
+        dataSource.setUsername(user);
+        dataSource.setPassword(password);
 
-        return ds;
+        dataSource.setMaximumPoolSize(POOL_MAX_SIZE);
+        dataSource.setMinimumIdle(POOL_MIN_IDLE);
+        dataSource.setIdleTimeout(IDLE_TIMEOUT_MS);
+        dataSource.setConnectionTimeout(CONNECTION_TIMEOUT_MS);
+        dataSource.setMaxLifetime(MAX_LIFETIME_MS);
+        dataSource.setPoolName("JobAppTrackerPool");
+
+        log.info("HikariCP connection pool initialized: maxPoolSize={}, minIdle={}",
+                dataSource.getMaximumPoolSize(), dataSource.getMinimumIdle());
+
+        return dataSource;
     }
 
     @Bean

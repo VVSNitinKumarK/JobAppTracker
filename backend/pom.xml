@@ -24,6 +24,8 @@
         <logback.version>1.5.15</logback.version>
         <tomcat.version>10.1.34</tomcat.version>
         <json-smart.version>2.5.1</json-smart.version>
+        <!-- PostgreSQL 18 support -->
+        <flyway.version>11.20.0</flyway.version>
     </properties>
 
     <dependencies>

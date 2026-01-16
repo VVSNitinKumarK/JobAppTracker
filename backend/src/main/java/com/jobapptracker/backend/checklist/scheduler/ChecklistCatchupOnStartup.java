@@ -9,19 +9,21 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.List;
 
 @Configuration
 public class ChecklistCatchupOnStartup {
 
     private static final Logger log = LoggerFactory.getLogger(ChecklistCatchupOnStartup.class);
+    private static final ZoneId APP_ZONE = ZoneId.of("America/Los_Angeles");
 
     @Bean
     ApplicationRunner catchupRunner(ChecklistService checklistService) {
         return args -> {
-            log.info("Starting checklist catchup on application startup");
+            log.info("Starting checklist catchup on application startup (zone={})", APP_ZONE);
             try {
-                LocalDate yesterday = LocalDate.now().minusDays(1);
+                LocalDate yesterday = LocalDate.now(APP_ZONE).minusDays(1);
                 List<CompanyDto> updated = checklistService.submitDay(yesterday);
                 log.info("Checklist catchup completed successfully: updated {} companies for date={}",
                         updated.size(), yesterday);

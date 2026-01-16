@@ -12,10 +12,8 @@ public final class CompanyTagUtil {
 
         String s = raw.trim().toLowerCase();
 
-        // normalize unicode (optional but safe)
         s = Normalizer.normalize(s, Normalizer.Form.NFKD);
 
-        // remove all non-alphanumeric characters
         s = s.replaceAll("[^a-z0-9]", "");
 
         return s;

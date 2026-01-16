@@ -14,7 +14,7 @@ public enum DueFilter {
                 case "today" -> TODAY;
                 case "overdue" -> OVERDUE;
                 case "upcoming" -> UPCOMING;
-                default -> throw new IllegalStateException("Invalid due value: " + raw + " (allowed: today, overdue, upcoming)");
+                default -> throw new IllegalArgumentException("Invalid 'due' filter. Allowed values: today, overdue, upcoming");
             };
         }
 }

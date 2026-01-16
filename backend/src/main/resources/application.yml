@@ -44,3 +44,7 @@ info:
 # CORS Configuration
 cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:3000}
+
+# Scheduler Configuration
+scheduler:
+    timezone: ${SCHEDULER_TIMEZONE:America/Los_Angeles}
