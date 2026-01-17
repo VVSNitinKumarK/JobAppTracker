@@ -1,5 +1,6 @@
 export const STALE_TIME = {
     COMPANIES: 30_000,
+    CHECKLIST: 30_000,
     TAGS: 5 * 60_000,
     META: 60_000,
 } as const;

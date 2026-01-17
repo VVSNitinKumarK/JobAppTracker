@@ -47,7 +47,7 @@ export type CreateCompanyRequest = {
     careersUrl: string;
     lastVisitedOn?: string | null;
     revisitAfterDays?: number;
-    tags?: string[]; // tag keys
+    tags?: TagDto[];
 };
 
 export async function createCompany(
@@ -61,18 +61,31 @@ export type UpdateCompanyRequest = {
     careersUrl?: string;
     lastVisitedOn?: string | null;
     revisitAfterDays?: number;
-    tags?: string[]; // tag keys
+    tags?: TagDto[];
 };
 
 export async function updateCompany(
     companyId: string,
     payload: UpdateCompanyRequest
 ): Promise<CompanyRow> {
-    return (await api.put(`/companies/${companyId}`, payload)) as CompanyRow;
+    return (await api.patch(`/companies/${companyId}`, payload)) as CompanyRow;
 }
 
 export async function deleteCompany(companyId: string): Promise<void> {
     await api.delete(`/companies/${companyId}`);
+}
+
+export type BatchDeleteResponse = {
+    deleted: number;
+    requested: number;
+};
+
+export async function deleteCompaniesBatch(
+    companyIds: string[]
+): Promise<BatchDeleteResponse> {
+    return (await api.delete<BatchDeleteResponse>(`/companies/batch`, {
+        companyIds,
+    })) as BatchDeleteResponse;
 }
 
 export async function getTags(): Promise<TagDto[]> {

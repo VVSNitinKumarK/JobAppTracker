@@ -123,7 +123,10 @@ export function UpdateCompanyDialog({
                     careersUrl: values.careersUrl.trim(),
                     lastVisitedOn: lastVisitedYmd ?? undefined,
                     revisitAfterDays: values.revisitAfterDays,
-                    tags: (values.tags ?? []).map((tag) => tag.key),
+                    tags: (values.tags ?? []).map((tag) => ({
+                        tagKey: tag.key,
+                        tagName: tag.label,
+                    })),
                 },
             });
 

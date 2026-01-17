@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { STALE_TIME } from "@/lib/constants";
 import {
     getChecklistByDate,
     setChecklistCompleted,
@@ -16,6 +17,7 @@ export function useChecklist(date: string) {
     return useQuery({
         queryKey: checklistKeys.byDate(date),
         queryFn: () => getChecklistByDate(date),
+        staleTime: STALE_TIME.CHECKLIST,
     });
 }
 

@@ -5,7 +5,7 @@ import {
     getCompanies,
     createCompany,
     updateCompany,
-    deleteCompany,
+    deleteCompaniesBatch,
     getTags,
     type CreateCompanyRequest,
     type UpdateCompanyRequest,
@@ -72,12 +72,10 @@ export function useDeleteCompanies() {
     const queryClient = useQueryClient();
 
     return useMutation({
-        mutationFn: async (companyIds: string[]) => {
-            await Promise.all(companyIds.map((id) => deleteCompany(id)));
-        },
-        onSuccess: (_data, companyIds) => {
+        mutationFn: (companyIds: string[]) => deleteCompaniesBatch(companyIds),
+        onSuccess: (result) => {
             queryClient.invalidateQueries({ queryKey: companyKeys.all });
-            const count = companyIds.length;
+            const count = result.deleted;
             toast.success(count === 1 ? "Company deleted" : `${count} companies deleted`);
         },
         onError: () => {

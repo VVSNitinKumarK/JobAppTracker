@@ -19,5 +19,9 @@ export default defineConfig([
       ecmaVersion: 2020,
       globals: globals.browser,
     },
+    rules: {
+      // Disable until React Compiler is adopted - rule only relevant for compiler compatibility
+      'react-hooks/incompatible-library': 'off',
+    },
   },
 ])

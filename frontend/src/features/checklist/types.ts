@@ -7,7 +7,7 @@ export type ChecklistItem = {
     lastVisitedOn: string | null;
     revisitAfterDays: number;
     tags?: TagDto[];
-    nextVisitOn: string;
+    nextVisitOn: string | null;
     createdAt: string;
     updatedAt: string;
     completed: boolean;

@@ -1,5 +1,6 @@
 import { api } from "../../lib/api";
 import type { ChecklistItem } from "./types";
+import type { CompanyRow } from "../companies/types";
 
 export function getChecklistByDate(date: string) {
     return api.get<ChecklistItem[]>(
@@ -22,5 +23,8 @@ export function setChecklistCompleted(params: {
 }
 
 export function submitChecklist(date: string) {
-    return api.post<void>(`/checklist/${encodeURIComponent(date)}/submit`, {});
+    return api.post<CompanyRow[]>(
+        `/checklist/${encodeURIComponent(date)}/submit`,
+        {}
+    );
 }

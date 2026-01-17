@@ -35,7 +35,7 @@ async function readJsonSafely(response: Response): Promise<Json | null> {
 export async function http<T = void>(
     input: RequestInfo | URL,
     init?: RequestInit
-): Promise<T> {
+): Promise<T | undefined> {
     const method = init?.method?.toUpperCase() ?? "GET";
     const hasBody = method !== "GET" && method !== "HEAD";
 
@@ -54,7 +54,7 @@ export async function http<T = void>(
 
     const text = await response.text();
     if (!text) {
-        return undefined as T;
+        return undefined;
     }
 
     return JSON.parse(text) as T;

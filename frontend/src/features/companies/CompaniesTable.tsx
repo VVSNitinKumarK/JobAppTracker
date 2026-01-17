@@ -31,8 +31,6 @@ import {
 import { createCompanyColumns } from "./columns";
 
 export function CompaniesTable() {
-    "use no memo";
-
     const [query, setQuery] = useState("");
     const [page, setPage] = useState(0);
     const [size] = useState(UI.PAGE_SIZE);
@@ -90,7 +88,6 @@ export function CompaniesTable() {
         [anySelected]
     );
 
-    // eslint-disable-next-line react-hooks/incompatible-library
     const table = useReactTable({
         data: items,
         columns,

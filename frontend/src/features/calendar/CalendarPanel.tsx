@@ -10,10 +10,6 @@ type Properties = {
     onSelectDate: (date: Date) => void;
 };
 
-function startOfMonthSafe(date: Date) {
-    return startOfMonth(date);
-}
-
 export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
     const selectedYmd = dateToYmd(selectedDate);
 
@@ -23,10 +19,10 @@ export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const fromMonth = startOfMonthSafe(subMonths(today, 1));
+    const fromMonth = startOfMonth(subMonths(today, 1));
     const toMonth = maxNextVisitOn
-        ? startOfMonthSafe(new Date(`${maxNextVisitOn}T00:00:00`))
-        : startOfMonthSafe(today);
+        ? startOfMonth(new Date(`${maxNextVisitOn}T00:00:00`))
+        : startOfMonth(today);
 
     const checklist = useChecklist(selectedYmd);
     const items = checklist.data ?? [];
@@ -73,7 +69,7 @@ export function CalendarDayPanel({ selectedDate, onSelectDate }: Properties) {
                                 next.setHours(0, 0, 0, 0);
                                 onSelectDate(next);
                             }}
-                            defaultMonth={startOfMonthSafe(selectedDate)}
+                            defaultMonth={startOfMonth(selectedDate)}
                             fromMonth={fromMonth}
                             toMonth={toMonth}
                             className="p-0"

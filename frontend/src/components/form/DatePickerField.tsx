@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 import { Calendar as CalendarIcon } from "lucide-react";
-import type { UseFormRegisterReturn, UseFormSetValue } from "react-hook-form";
+import type { FieldValues, UseFormRegisterReturn, UseFormSetValue } from "react-hook-form";
 
 import { Input } from "@/components/ui/input";
 import { Calendar } from "@/components/ui/calendar";
@@ -16,7 +16,7 @@ type Properties = {
     label: string;
     placeholder?: string;
     register: UseFormRegisterReturn;
-    setValue: UseFormSetValue<any>;
+    setValue: UseFormSetValue<FieldValues>;
     value: string | undefined;
     error?: string;
     helperText?: string;
