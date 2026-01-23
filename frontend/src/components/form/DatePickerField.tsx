@@ -12,18 +12,18 @@ import {
 import { cn } from "@/lib/utils";
 import { parseMMddyyyyToYmd, ymdToMmddyyyy } from "@/lib/dateUtils";
 
-type Properties = {
+type Properties<T extends FieldValues = FieldValues> = {
     label: string;
     placeholder?: string;
     register: UseFormRegisterReturn;
-    setValue: UseFormSetValue<FieldValues>;
+    setValue: UseFormSetValue<T>;
     value: string | undefined;
     error?: string;
     helperText?: string;
     ariaLabel?: string;
 };
 
-export function DatePickerField({
+export function DatePickerField<T extends FieldValues = FieldValues>({
     label,
     placeholder = "MM/DD/YYYY",
     register,
@@ -32,7 +32,7 @@ export function DatePickerField({
     error,
     helperText,
     ariaLabel = "Pick date",
-}: Properties) {
+}: Properties<T>) {
     const ymd = parseMMddyyyyToYmd(value ?? "");
     const selectedDate = ymd ? new Date(`${ymd}T00:00:00`) : undefined;
 
@@ -71,8 +71,8 @@ export function DatePickerField({
                                     return;
                                 }
 
-                                const ymd = format(date, "yyyy-MM-dd");
-                                setValue(register.name, ymdToMmddyyyy(ymd), {
+                                const formatted = ymdToMmddyyyy(format(date, "yyyy-MM-dd"));
+                                (setValue as UseFormSetValue<FieldValues>)(register.name, formatted, {
                                     shouldValidate: true,
                                 });
                             }}
